@@ -1,4 +1,4 @@
-version_number = "0.4.0"
+version_number = "0.4.1"
 
 print("")
 print("      _______ _    _ _   _                      ___\n     |__   __| |  | | \\ | |   /\\            ___/__/____   _\n ~~~~~~ | |  | |  | |  \\| |  /  \\ ~~~~~~~~ / .         \\ / ) ~~~~ \n ~~~~~~ | |  | |  | | . ` | / /\\ \\ ~~~~~~ (      \\\\     | ( ~~~~~ \n ~~~~~~ | |  | |__| | |\\  |/ ____ \\ ~~~~~~ \\___________/ \\_) ~~~~ \n        |_|   \\____/|_| \\_/_/    \\_\\           \\__\\")
@@ -100,8 +100,11 @@ def get_params():
 
     method, basis = input_line.split("!")[1].split("!")[0].strip().split()
 
-    params = input_line.split("!")[2].strip().split()
-    for param in params: param = param.strip()
+    if len(input_line.split("!")) == 3:
+        params = input_line.split("!")[2].strip().split()
+        for param in params: param = param.strip()
+        
+    else: params = []
     
     if calculation not in calculation_options: sys.exit(f"ERROR: Calculation type \"{calculation}\" is not supported.  :(")
     if method not in method_options: sys.exit(f"ERROR: Calculation method \"{method}\" is not supported.  :(")
@@ -758,7 +761,7 @@ def calculate_frequency(coordinates, optimised_energy=0, point_group_from_opt=0)
 
     if imaginary_freq: zpe = 0
 
-    print(f"\n Temperature used is {temperature:.2f} K, pressure used is {(pressure / 101325):.2f} atm.")
+    print(f"\n Temperature used is {temperature:.2f} K, pressure used is {(pressure)} Pa.")
     print(" Entropies multiplied by temperature to give units of energy.")
     print(f" Using symmetry number derived from {point_group} point group for rotational entropy.")
 

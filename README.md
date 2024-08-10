@@ -41,5 +41,5 @@ pip install QuantumTUNA
 
 ### Running
 
-Add the folder where TUNA was installed (on Windows usually ```USER/AppData/Local/Programs/Python/Python312/Lib/site-packages/TUNA/``` to PATH, and then run ```tuna --version``` which should print the correct version if TUNA has installed correctly.
+Add the folder where TUNA was installed (on Windows this may be ```/AppData/Local/Programs/Python/Python312/Lib/site-packages/TUNA/```) to PATH, and then run ```tuna --version``` which should print the correct version if TUNA has installed correctly.
 

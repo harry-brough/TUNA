@@ -2,11 +2,14 @@
 
 Welcome to TUNA! A user-friendly quantum chemistry program for diatomics.
 
+![Alt text](TUNA_logo.pdf "")
+
 # Contents
 
 The repository includes:
 
 * This README file
+* The TUNA logo
 * The file LICENSE with the MIT license
 * The folder TUNA containing python files
 * The installation file pyproject.toml

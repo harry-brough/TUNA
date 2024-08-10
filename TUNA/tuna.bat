@@ -1,2 +1,6 @@
 @echo off
-python C:\Users\harry\OneDrive\Desktop\TUNA\tuna.py %*
+if "%1" == "--version" (
+    echo 0.4.1
+) else (
+    python "%~dp0tuna.py" %*
+)

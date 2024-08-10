@@ -790,6 +790,8 @@ def calculate_frequency(coordinates, optimised_energy=0, point_group_from_opt=0)
 
 
 def main(): 
+
+
     
     global calculation; global method; global basis; global atoms; global Z_list; global m_list; global geom_conv; global slowconv; global calchess; global moread; global calculation_types
     global charge; global max_iter; global d2; global scf_conv; global densplot; global DIIS; global level_shift; global scanstep; global scannumber; global damping; global additional_print; global scan_plot

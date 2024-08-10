@@ -1,4 +1,4 @@
-# TUNA
+# TUNA — Theoretical Unification of Nuclear Arrangements
 
 Welcome to TUNA! A user-friendly quantum chemistry program for diatomics.
 

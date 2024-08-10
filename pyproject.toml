@@ -1,21 +1,25 @@
 [build-system]
-requires = ["setuptools>=61.0", "numpy", "matplotlib", "scipy"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "QuantumTuna"
 version = "0.4.1"
 authors = [
-  { name="Harry Brough"},
+  { name="Harry Brough"}
 ]
 description = "A user-friendly quantum chemistry program for diatomics."
 readme = "README.md"
 requires-python = ">=3.12"
 classifiers = [
+    "Development Status :: 3 - Alpha",
     "Programming Language :: Python :: 3.12",
     "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
+    "Operating System :: Microsoft :: Windows :: Windows 11",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["TUNA"]
 
 [project.urls]
 Homepage = "https://github.com/harrybrough1/TUNA"

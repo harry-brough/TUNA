@@ -2,7 +2,7 @@
 
 Welcome to TUNA! A user-friendly quantum chemistry program for diatomics.
 
-![Alt text](TUNA_logo.pdf "")
+![Alt text](TUNA_logo.svg "")
 
 # Contents
 

@@ -1,6 +1,22 @@
 @echo off
-if "%1" == "--version" (
-    echo 0.4.1
+setlocal
+
+set "scriptDir=%~dp0"
+
+if "%1"=="--version" (
+    for /f "tokens=2 delims== " %%i in ('findstr /r /c:__version__ "%scriptDir%__init__.py"') do (
+        set "version=%%i"
+        call :stripQuotes
+    )
 ) else (
-    python "%~dp0tuna.py" %*
+    python "%scriptDir%tuna.py" %*
 )
+
+endlocal
+goto :eof
+
+:stripQuotes
+
+set "version=%version:"=%"
+echo %version%
+goto :eof

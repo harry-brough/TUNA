@@ -98,6 +98,47 @@ def generate_6_31g_orbitals(atom,location):
     
     return orbitals
 
+
+def generate_6_31_plusg_orbitals(atom,location):
+
+    orbitals = []
+    
+    if atom == "H" or atom == "XH":
+    
+        orbitals = [[primitive_gaussian( 18.7311370000, 0.0334945995, location), 
+        primitive_gaussian(2.8253937000, 0.2347269467, location), 
+        primitive_gaussian(0.6401217000, 0.8137573184, location)],[primitive_gaussian( 0.1612778000, 1.000000, location)]]
+    
+    elif atom == "HE" or atom == "XHE":
+    
+        orbitals = [[primitive_gaussian(0.3842163400E+02, 0.0401397393, location), 
+        primitive_gaussian(5.7780300000, 0.2612460970, location), 
+        primitive_gaussian(1.2417740000, 0.7931846246, location)],[primitive_gaussian( 0.2979640000, 1.000000, location)]]
+    
+    
+    return orbitals
+
+
+def generate_6_31_plus_plusg_orbitals(atom,location):
+
+    orbitals = []
+    
+    if atom == "H" or atom == "XH":
+    
+        orbitals = [[primitive_gaussian(0.1873113696E+02, 0.3349460434E-01, location), 
+        primitive_gaussian(0.2825394365E+01, 0.2347269535E+00, location), 
+        primitive_gaussian(0.6401216923E+00, 0.8137573261E+00, location)],[primitive_gaussian(0.1612777588E+00, 1.000000, location)],[primitive_gaussian(0.3600000000E-01, 0.1000000000E+01, location)]]
+    
+    elif atom == "HE" or atom == "XHE":
+    
+        orbitals = [[primitive_gaussian(0.3842163400E+02, 0.4013973935E-01, location), 
+        primitive_gaussian(0.5778030000E+01, 0.2612460970E+00, location), 
+        primitive_gaussian(0.1241774000E+01, 0.7931846246E+00, location)],[primitive_gaussian(0.2979640000E+00, 1.000000, location)],[primitive_gaussian(0.8600000000E-01, 1.000000, location)]]
+    
+    
+    return orbitals
+
+
 def generate_3_21g_orbitals(atom, location):
 
     orbitals = []
@@ -116,7 +157,47 @@ def generate_3_21g_orbitals(atom, location):
     return orbitals
     
     
+def generate_4_31g_orbitals(atom, location):
+
+    orbitals = []
+    
+    if atom == "H" or atom == "XH":
+    
+        orbitals = [[primitive_gaussian(0.1873113696E+02, 0.3349460434E-01, location), 
+        primitive_gaussian(0.2825394365E+01, 0.2347269535E+00, location),primitive_gaussian(0.6401216923E+00, 0.8137573261E+00, location)],
+        [primitive_gaussian(0.1612777588E+00, 1.000000, location)]]
+    
+    elif atom == "HE" or atom == "XHE":
+    
+        orbitals = [[primitive_gaussian(0.3842163400E+02, 0.4013973935E-01, location), 
+        primitive_gaussian(0.5778030000E+01, 0.2612460970E+00, location), 
+        primitive_gaussian(0.1241774000E+01, 0.7931846246E+00, location)],[primitive_gaussian(0.2979640000E+00, 1.000000, location)]]
+    
+    
+    return orbitals
+    
+    
 def generate_6_311g_orbitals(atom,location):
+
+    orbitals = []
+    
+    if atom == "H" or atom == "XH":
+    
+        orbitals = [[primitive_gaussian(33.86500, 0.0254938, location), 
+        primitive_gaussian(5.094790, 0.190373, location), 
+        primitive_gaussian(1.158790,  0.852161, location)],[primitive_gaussian(0.325840, 1.000000, location)],[primitive_gaussian(0.102741, 1.000000, location)]]
+        
+        
+    elif atom == "HE" or atom == "XHE":
+    
+        orbitals = [[primitive_gaussian(98.12430, 0.0287452, location), 
+        primitive_gaussian(14.76890, 0.208061, location), 
+        primitive_gaussian(3.318830,  0.837635, location)],[primitive_gaussian(0.874047, 1.000000, location)],[primitive_gaussian(0.244564, 1.000000, location)]]
+        
+        
+    return orbitals
+    
+def generate_6_311_plusg_orbitals(atom,location):
 
     orbitals = []
     

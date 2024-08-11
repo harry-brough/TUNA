@@ -1,7 +1,8 @@
-version_number = "0.4.1"
+import __init__ as init
+version_number = init.__version__
 
-print("")
-print("      _______ _    _ _   _                      ___\n     |__   __| |  | | \\ | |   /\\            ___/__/____   _\n ~~~~~~ | |  | |  | |  \\| |  /  \\ ~~~~~~~~ / .         \\ / ) ~~~~ \n ~~~~~~ | |  | |  | | . ` | / /\\ \\ ~~~~~~ (      \\\\     | ( ~~~~~ \n ~~~~~~ | |  | |__| | |\\  |/ ____ \\ ~~~~~~ \\___________/ \\_) ~~~~ \n        |_|   \\____/|_| \\_/_/    \\_\\           \\__\\")
+print("\n      _______ _    _ _   _                     ___           \n     |__   __| |  | | \\ | |   /\\            __/__/__  _      \n ~~~~~~ | |  | |  | |  \\| |  /  \\ ~~~~~~~~ / .      \\/ ) ~~~~\n ~~~~~~ | |  | |  | | . ` | / /\\ \\ ~~~~~~ (     ))    ( ~~~~~\n ~~~~~~ | |  | |__| | |\\  |/ ____ \\ ~~~~~~ \\________/\\_) ~~~~\n        |_|   \\____/|_| \\_/_/    \\_\\          \\\\_\\           ")
+
 print("\n")
 print(f"Welcome to version {version_number} of TUNA (Theoretical Unification of Nuclear Arrangements)!\n")
 print("Importing required libraries...    ",end="")
@@ -83,7 +84,7 @@ def get_params():
     atom_options = ["XH", "XHE", "H", "HE"]
     calculation_options = ["SPE", "OPT", "SCAN", "FREQ", "OPTFREQ"]
     method_options = ["HF", "RHF", "MP2", "SCS-MP2"]
-    basis_options = ["STO-3G", "STO-6G", "3-21G", "6-31G", "6-311G", "6-311++G", "HTO-CBS"]
+    basis_options = ["STO-3G", "STO-6G", "3-21G", "6-31G", "6-31+G","6-311+G","6-311G", "6-311++G", "4-31G","HTO-CBS", "6-31++G"]
     Z_list = []; m_list = []
 
     for arg in range(1, len(sys.argv)): input_line += sys.argv[arg] + " "
@@ -885,10 +886,12 @@ def main():
 #Miscellaneous: read MOs from previous point for scan coordinate and optimisation, temperature keyword for thermochemistry and pressure
 
 #For Version 0.5.0
-#Calculation types: harmonic frequency intensities, anharmonic frequency
-#Methods: UHF
-#SCF: Improve integral engine
-#Post-SCF: Mayer bond order
+#Calculation types: harmonic frequency intensities, anharmonic frequency, MD
+#Methods: UHF, UMP2
+#SCF: Improve integral engine, decontract basis keyword
+#Basis sets: Formally added 6-31+G and 6-311+G, 4-31G, 6-31++G
+#Post-SCF: Mayer bond order, MD runs and geom opts (optionally) print to xyz trajectory file
+#Miscellaneous: Slimmed down fish logo :( 
 
 
 

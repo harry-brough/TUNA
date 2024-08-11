@@ -30,6 +30,8 @@ The program requires Python 3.12 or higher and the following packages:
 * numpy
 * scipy
 * matplotlib
+* plotly
+* scikit-image
 
 ### Installation
 

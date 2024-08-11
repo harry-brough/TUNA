@@ -4,10 +4,19 @@ build-backend = "hatchling.build"
 
 [project]
 name = "QuantumTuna"
-version = "0.4.1"
+dynamic = ["version"]
 authors = [
-  { name="Harry Brough"}
+  { name="Harry Brough", email = "harry.brough@icloud.com"}
 ]
+keywords = ["quantum chemistry", "molecular physics", "hartree-fock", "mp2", "dft"]
+dependencies = [
+  "numpy",
+  "scipy",
+  "matplotlib",
+  "plotly",
+  "scikit-image",
+]
+
 description = "A user-friendly quantum chemistry program for diatomics."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -18,8 +27,12 @@ classifiers = [
     "Operating System :: Microsoft :: Windows :: Windows 11",
 ]
 
+
 [tool.hatch.build.targets.wheel]
 packages = ["TUNA"]
 
+[tool.hatch.version]
+path = "/TUNA/__init__.py"
+
 [project.urls]
-Homepage = "https://github.com/harrybrough1/TUNA"
+Repository = "https://github.com/harrybrough1/TUNA"

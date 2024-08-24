@@ -1,11 +1,12 @@
 # TUNA
 
 Welcome to TUNA! A user-friendly quantum chemistry program for diatomics.
-{br}
+<br>
 <p align="center">
   <img src="TUNA Logo.svg" alt="Fish swimming through a wavepacket" width=480 />
 </p>
-{br}
+<br>
+
 ## Contents
 
 The repository includes:

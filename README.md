@@ -2,8 +2,8 @@
 
 Welcome to TUNA! A user-friendly quantum chemistry program for diatomics.
 
-<p align="center" style="margin: 0;">
-  <img src="TUNA Logo.svg" alt="Fish swimming through a wavepacket" style="max-width: 60%; height: auto;" />
+<p align="center" style="margin: 200pt;">
+  <img src="TUNA Logo.svg" alt="Fish swimming through a wavepacket" style="max-width: 10%; height: auto;" />
 </p>
 
 ## Contents

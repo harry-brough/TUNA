@@ -4,7 +4,7 @@ Welcome to TUNA! A user-friendly quantum chemistry program for diatomics.
 
 <br>
 <p align="center">
-  <img src="TUNA Logo.svg" alt="Fish swimming through a wavepacket" />
+  <img src="TUNA Logo.svg" alt="Fish swimming through a wavepacket" style="max-width: 50%; height: auto; />
 </p>
 
 ## Contents

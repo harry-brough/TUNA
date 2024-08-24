@@ -1,5 +1,6 @@
 import sys
 import numpy as np
+import tuna_util as util
 
 class primitive_gaussian():
 
@@ -10,31 +11,18 @@ class primitive_gaussian():
         self.coordinates = coordinates
         self.N = (2.0 * alpha / np.pi) ** 0.75
 
-class atomic_orbital():
 
-    def __init__(self, pgs, coordinates):
-        
-        self.pgs = pgs
-        self.coordinates = coordinates
+def generate_atomic_orbitals(atom_type, basis, location):
+    
+    basis = basis.replace("-", "_")
+    basis = basis.replace("+", "_plus")
+    
+    atomic_orbitals = getattr(sys.modules[__name__], f"generate_{basis.lower()}_orbitals")(atom_type, location)
 
-class atom():
-   
-    def __init__(self, atomic_orbitals, coordinates, Z):
-        
-        self.atomic_orbitals = atomic_orbitals
-        self.coordinates = coordinates
-        self.Z = Z
-        
-class molecule():
+    return atomic_orbitals
+    
 
-    def __init__(self, atoms, coordinates, Z_list, basis_functions):
-        
-        self.atoms = atoms
-        self.coordinates = coordinates
-        self.Z_list = Z_list
-        self.basis_functions = basis_functions
-
-def generate_sto_3g_orbitals(atom,location):
+def generate_sto_3g_orbitals(atom, location):
 
     orbitals = []
     
@@ -228,7 +216,7 @@ def generate_6_311_plus_plusg_orbitals(atom,location):
         primitive_gaussian(5.094790, 0.190373, location), 
         primitive_gaussian(1.158790, 0.852161, location)],[primitive_gaussian(0.325840, 1.000000, location)],[primitive_gaussian(0.102741, 1.000000, location)],[primitive_gaussian(0.036, 1.000000, location)]]
     
-    if atom == "HE" or atom == "XHE": sys.exit("\nERROR: The 6-311++G is not parameterised for He. Choose another basis set!")
+    if atom == "HE" or atom == "XHE": util.error("The 6-311++G is not parameterised for He. Choose another basis set!")
     
     return orbitals
     

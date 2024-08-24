@@ -3,6 +3,25 @@ import sys
 import tuna_util as util
 
 
+def build_unrestricted_molecular_orbital_matrix(molecular_orbitals_alpha, molecular_orbitals_beta):
+
+    molecular_orbitals = np.block([[molecular_orbitals_alpha, np.zeros_like(molecular_orbitals_beta)],
+                                    [np.zeros_like(molecular_orbitals_alpha), molecular_orbitals_beta]])
+
+    return molecular_orbitals
+
+
+
+def spin_block_mo_two_electron_integrals(mo_two_electron_integrals):
+    """  
+
+    identity = np.eye(2)
+    Imo_two_electron_integrals = np.kron(identity, Imo_two_electron_integrals)
+
+    return np.kron(identity, mo_two_electron_integrals.T)
+
+
+
 def transform_ao_two_electron_integrals(ao_two_electron_integrals, occ_mos, virt_mos, silent=False):
 
     """Requires two-electron integrals in atomic orbital basis, and occupied and virtual molecular orbitals.

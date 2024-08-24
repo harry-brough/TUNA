@@ -14,13 +14,14 @@ The repository includes:
 * This README file
 * The TUNA logo
 * The file LICENSE with the MIT license
-* The folder TUNA containing python files
+* The folder TUNA containing Python files
 * The installation file pyproject.toml
 * The TUNA manual
+* A changelog
 
 ## Documentation
 
-A copy of the TUNA manual can be found in the directory where the Python files are installed.
+A copy of the TUNA manual can be found in this repository, and in the directory where the Python files are installed.
 
 ## Using TUNA
 
@@ -32,6 +33,7 @@ The program requires Python 3.12 or higher and the following packages:
 * matplotlib
 * plotly
 * scikit-image
+* termcolor
 
 ### Installation
 

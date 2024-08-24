@@ -1,26 +1,24 @@
 import numpy as np
-import tuna_integral as integ
+from termcolor import colored
 import sys
+import tuna_util as util
 
-c = 137.035999
 
 def calculate_centre_of_mass(masses, coordinates): return np.einsum("i,ij->", masses, coordinates) / np.sum(masses)
-   
+
+def calculate_electronic_dipole_moment(P, D): return -np.einsum("ij,ij->",P,D)
+
+def calculate_reduced_mass(masses): return np.prod(masses) / np.sum(masses)
+
+ 
 def calculate_nuclear_dipole_moment(centre_of_mass, Z_list, coordinates): 
 
     nuclear_dipole_moment = 0
     
-    for i in range(len(Z_list)):
-        nuclear_dipole_moment += (coordinates[i][2] - centre_of_mass) * Z_list[i]
+    for i in range(len(Z_list)): nuclear_dipole_moment += (coordinates[i][2] - centre_of_mass) * Z_list[i]
         
     return nuclear_dipole_moment
    
-   
-def calculate_electronic_dipole_moment(P, D): return -np.einsum("ij,ij->",P,D)
-
-    
-def calculate_reduced_mass(masses): return np.prod(masses) / np.sum(masses)
-
 
 def calculate_rotational_constant(masses, coordinates):
 
@@ -28,44 +26,21 @@ def calculate_rotational_constant(masses, coordinates):
     reduced_mass = calculate_reduced_mass(masses)
     
     rotational_constant_hartree = 1 / (2 * reduced_mass * bond_length ** 2)  
-    rotational_constant_per_bohr = rotational_constant_hartree / (2 * np.pi * c)
+    rotational_constant_per_bohr = rotational_constant_hartree / (util.constants.h * util.constants.c)
     
-    rotational_constant_per_cm = 0.01 * rotational_constant_per_bohr / 5.2917721067121e-11 
-    rotational_constant_GHz = 29.9792458 * rotational_constant_per_cm
+    rotational_constant_per_cm = rotational_constant_per_bohr / (100 * util.constants.bohr_in_metres)
+    rotational_constant_GHz = util.constants.per_cm_in_GHz * rotational_constant_per_cm
     
     return rotational_constant_per_cm, rotational_constant_GHz
 
 
-def population_analysis(P, S, coordinates, Z_list, atoms, ao_ranges):
-    
-    
-    S_vals, S_vecs = np.linalg.eigh(S)
-    S_sqrt = S_vecs * np.sqrt(S_vals) @ S_vecs.T
-    
-    P_reshaped = P.reshape(len(atoms), -1, P.shape[1])
-    S_reshaped = S.reshape(S.shape[0], len(atoms), -1)
+def calculate_koopman_parameters(epsilons, n_doubly_occ):
 
-    qs_mull = Z_list - np.sum(np.multiply(S_reshaped.transpose(1, 2, 0), P_reshaped), axis=(1, 2))
-    qsum_mull = np.sum(qs_mull)
-    bo_mull = 2 * np.sum(P[:ao_ranges[0], ao_ranges[0]:ao_ranges[0] + ao_ranges[1]] * S[:ao_ranges[0], ao_ranges[0]:ao_ranges[0] + ao_ranges[1]])
-    
-    
-    P_low = S_sqrt @ P @ S_sqrt
-    
-    qs_low = Z_list - np.sum(np.diag(P_low).reshape(len(atoms), -1)[:, :ao_ranges[0] + ao_ranges[1]], axis=1)    
-    qsum_low = np.sum(qs_low)
-    bo_low = np.sum(P_low[:ao_ranges[0], ao_ranges[0]:ao_ranges[0] + ao_ranges[1]] ** 2)     
-    
-    return qs_mull, qsum_mull, bo_mull, qs_low, qsum_low, bo_low
-    
-
-def calculate_koopman_parameters(epsilons, n_occ):
-
-    ionisation_energy = -1 * epsilons[n_occ - 1]
+    ionisation_energy = -1 * epsilons[n_doubly_occ - 1]
         
-    if len(epsilons) > n_occ: 
+    if len(epsilons) > n_doubly_occ: 
     
-        electron_affinity = -1 * epsilons[n_occ]
+        electron_affinity = -1 * epsilons[n_doubly_occ]
         homo_lumo_gap = ionisation_energy - electron_affinity
         
     else: 
@@ -73,20 +48,19 @@ def calculate_koopman_parameters(epsilons, n_occ):
         electron_affinity = "---"
         homo_lumo_gap = "---"
         
-        print("WARNING: Size of basis is too small for electron affinity calculation!")
-
+        print(colored("WARNING: Size of basis is too small for electron affinity calculation!","light_yellow"))
 
     return ionisation_energy, electron_affinity, homo_lumo_gap
  
  
  
-def construct_electron_density(P, grid_density, coords, orbitals, n_occ):
+def construct_electron_density(P, grid_density, molecule):
 
-    print("\nBeginning electron density surface plot calculation...\n")
+    print("\n Beginning electron density surface plot calculation...\n")
 
-    print("Setting up grid...   ", end="")
+    print(" Setting up grid...   ", end="")
     
-    coordinates = [coords[0][2], coords[1][2]]
+    coordinates = [molecule.coordinates[0][2], molecule.coordinates[1][2]]
     start = coordinates[0] - 4
     
     x = np.arange(start, coordinates[0] + 4 + grid_density, grid_density)
@@ -98,15 +72,16 @@ def construct_electron_density(P, grid_density, coords, orbitals, n_occ):
     
     print("[Done]")
     
-    print("Generating electron density cube...   ", end=""); sys.stdout.flush()
+    print(" Generating electron density cube...   ", end=""); sys.stdout.flush()
     
     n = 0
 
-
     atomic_orbitals = []
 
-    for orbital in orbitals:
+    for orbital in molecule.atomic_orbitals:
+
         a = 0
+
         for pg in orbital:  
         
             a += pg.N * pg.coeff * np.exp(-pg.alpha * ((X - pg.coordinates[0])**2 + (Y - pg.coordinates[1])**2 + (Z - pg.coordinates[2])**2))
@@ -119,10 +94,10 @@ def construct_electron_density(P, grid_density, coords, orbitals, n_occ):
     n = np.einsum("mn,mijk,nijk->ijk", P, atomic_orbitals, atomic_orbitals)
     
     normalisation = np.trapz(np.trapz(np.trapz(n,z),y), x)
-    n *= n_occ * 2 / normalisation
+    n *= molecule.n_doubly_occ * 2 / normalisation
 
     print("[Done]")
-    print("Generating surface plot...   ", end="")
+    print(" Generating surface plot...   ", end="")
     sys.stdout.flush()
     isovalue = 0.06
     
@@ -139,166 +114,279 @@ def construct_electron_density(P, grid_density, coords, orbitals, n_occ):
     
     fig.show()
     
-    
-    
     return n
 
 
 def print_energy_components(nuclear_electron_energy, kinetic_energy, exchange_energy, coulomb_energy, V_NN):
+
 
     one_electron_energy = nuclear_electron_energy + kinetic_energy
     two_electron_energy = exchange_energy + coulomb_energy
     electronic_energy = one_electron_energy + two_electron_energy
     total_energy = electronic_energy + V_NN
             
-    print(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")      
+    print(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")      
     print("              Energy Components       ")
-    print(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    print(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
             
 
-    print(f"  Kinetic energy:              {kinetic_energy:.9f}")
+    print(f"  Kinetic energy:              {kinetic_energy:.10f}")
 
-    print(f"  Coulomb energy:              {coulomb_energy:.9f}")
-    print(f"  Exchange energy:            {exchange_energy:.9f}")
-    print(f"  Nuclear repulsion energy:    {V_NN:.9f}")
-    print(f"  Nuclear attraction energy:  {nuclear_electron_energy:.9f}\n")      
+    print(f"  Coulomb energy:              {coulomb_energy:.10f}")
+    print(f"  Exchange energy:            {exchange_energy:.10f}")
+    print(f"  Nuclear repulsion energy:    {V_NN:.10f}")
+    print(f"  Nuclear attraction energy:  {nuclear_electron_energy:.10f}\n")      
 
-    print(f"  One-electron energy:        {one_electron_energy:.9f}")
-    print(f"  Two-electron energy:         {two_electron_energy:.9f}")
-    print(f"  Electronic energy:          {electronic_energy:.9f}\n")
+    print(f"  One-electron energy:        {one_electron_energy:.10f}")
+    print(f"  Two-electron energy:         {two_electron_energy:.10f}")
+    print(f"  Electronic energy:          {electronic_energy:.10f}\n")
             
-    print(f"  Total energy:               {total_energy:.9f}")
-    print(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n")  
+    print(f"  Total energy:               {total_energy:.10f}")
+    print(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")  
 
     return
 
 
-def post_scf_output(method, additional_print, n_electrons, epsilons, molecular_orbitals, n_occ, m_list, Z_list, coordinates, molecular_structure, molecule, atoms, P, S, ao_ranges, orbitals):
+
+def calculate_population_analysis(P, S, R, ao_ranges, atoms, Z_list):
+
+    """
+    
+    Requires density matrix, overlap matrix, spin density matrix (alpha minus beta density matrices), list of atoms and list of charges.
+    
+    Performs Mulliken, Lowdin and Mayer population analysis. Does all of these together to share for loop infrastructure.
+    
+    Returns the Mulliken bond order, charges and total charge, the Lowin bond order, charges and total charge, and the Mayer bond order, free and total valences.
+    
+    """
+
+    PS = P @ S
+    RS = R @ S
+
+    #Diagonalises overlap matrix to form density matrix in orthogonalised Lowdin basis
+    S_vals, S_vecs = np.linalg.eigh(S)
+    S_sqrt = S_vecs * np.sqrt(S_vals) @ S_vecs.T
+    P_lowdin = S_sqrt @ P @ S_sqrt
+
+    #Initialisation of various variables
+    bond_order_mayer = 0
+    bond_order_lowdin = 0
+    bond_order_mulliken = 0
+
+    total_valences = [0, 0]
+
+    populations_mulliken = [0, 0]
+    populations_lowdin = [0, 0]
+    charges_mulliken = [0, 0]
+    charges_lowdin = [0, 0]
+
+
+    #Sums over the ranges of each atomic orbital over atom A, then atom B to build the three bond orders
+    for i in range(ao_ranges[0]):
+        for j in range(ao_ranges[0], ao_ranges[0] + ao_ranges[1]):
+
+            bond_order_mayer += PS[i,j] * PS[j,i] + RS[i,j] * RS[j,i]
+            bond_order_lowdin += P_lowdin[i,j] ** 2
+            bond_order_mulliken += 2 * P[i,j] * S[i,j]
+    
+    #Sums over atoms, then corresponding ranges of atomic orbitals in the density matrix, to build the valences and populations
+    for atom in range(len(atoms)):
+
+        if atom == 0: atomic_ranges = list(range(ao_ranges[0]))
+        elif atom == 1: atomic_ranges = list(range(ao_ranges[0], ao_ranges[0] + ao_ranges[1]))
+
+        for i in atomic_ranges:
+            
+            populations_lowdin[atom] += P_lowdin[i,i] 
+            populations_mulliken[atom] += PS[i,i]
+
+            for j in atomic_ranges:
+
+                total_valences[atom] += PS[i,j] * PS[j,i]
+
+        charges_mulliken[atom] = Z_list[atom] - populations_mulliken[atom]
+        charges_lowdin[atom] = Z_list[atom] - populations_lowdin[atom]
+
+        total_valences[atom] = 2 * populations_mulliken[atom] - total_valences[atom]
+
+
+    total_charges_mulliken = np.sum(charges_mulliken)
+    total_charges_lowdin = np.sum(charges_lowdin)
+
+    free_valences = np.array(total_valences) - bond_order_mayer
+
+
+    return bond_order_mulliken, charges_mulliken, total_charges_mulliken, bond_order_lowdin, charges_lowdin, total_charges_lowdin, bond_order_mayer, free_valences, total_valences
+
+
+
+
+def format_population_analysis_output(charges_mulliken, charges_lowdin, total_charges_mulliken, bond_order_mulliken, bond_order_lowdin, free_valences, total_valences, atoms):
+    
+    """
+    
+    Requires Mulliken and Lowdin charges, total Mulliken charges, Mulliken and Lowdin bond orders, free and total Mayer valences and atoms list.
+
+    Formats these values appropriately for the terminal output so the decimal points are aligned and negative signs don't mess things up.
+
+    Returns formatted sizes of blank spaces (1, 2 and 3), as well as these formatted values.
+
+
+    """
+
+    space = "" if total_charges_mulliken < 0 else " "
+    space2 = "" if bond_order_mulliken < 0 else " "
+    space3 = "" if bond_order_lowdin < 0 else " "
+
+    atoms_formatted = []
+    free_valences_formatted = []
+
+    #Combined into one for loop for performance
+    for i, atom in enumerate(atoms):
+    
+        atom = atom.lower().capitalize()
+        atom = atom + "  :" if len(atom) == 1 else atom + " :"
+        atoms_formatted.append(atom)
+
+        if free_valences[i] > 0: free_valences_formatted.append(f" {free_valences[i]:.5f}")
+        else: free_valences_formatted.append(f"{free_valences[i]:.5f}")
+
+        if total_valences[i] > 0: total_valences[i] = f" {total_valences[i]:.5f}"
+        else: total_valences[i] = f"{total_valences[i]:.5f}"
+
+        if charges_mulliken[i] > 0: charges_mulliken[i] = f" {charges_mulliken[i]:.5f}"
+        else: charges_mulliken[i] = f"{charges_mulliken[i]:.5f}"
+
+        if charges_lowdin[i] > 0: charges_lowdin[i] = f" {charges_lowdin[i]:.5f}"
+        else: charges_lowdin[i] = f"{charges_lowdin[i]:.5f}"
+
+    
+    return space, space2, space3, charges_mulliken, charges_lowdin, free_valences_formatted, total_valences, atoms_formatted 
+
+
+
+def post_scf_output(molecule, calculation, epsilons, molecular_orbitals, P, S, ao_ranges, D, P_alpha, P_beta):
 
     print("\n Beginning calculation of TUNA properties... ")
         
+    method = calculation.method
+    additional_print = calculation.additional_print
+    n_electrons = molecule.n_electrons
+    n_doubly_occ = molecule.n_doubly_occ
+    masses = molecule.masses
+    coordinates = molecule.coordinates
+    atoms = molecule.atoms
+    Z_list = molecule.Z_list
+    molecular_structure = molecule.molecular_structure
 
     if method == "MP2": print("\n Using the MP2 unrelaxed density for property calculations.")
-    if method == "SCS-MP2": print(" WARNING: The SCS-MP2 density is not implemented! Using unscaled MP2 density for property calculations.")
+    if method == "SCS-MP2": print(colored(" WARNING: The SCS-MP2 density is not implemented! Using unscaled MP2 density for property calculations.","light_yellow"))
     
-
     if additional_print:
             
-        print("Molecular orbital eigenvalues:\n")
-        print("~~~~~~~~~~~~~~~~~~~~~~~")
-        print(" N     Occ    Eps (Hart.)")
-        print("~~~~~~~~~~~~~~~~~~~~~~~")
+        print("\n Molecular orbital eigenvalues:\n")
+        print(" ~~~~~~~~~~~~~~~~~~~~~~~")
+        print("  N     Occ    Epsilon ")
+        print(" ~~~~~~~~~~~~~~~~~~~~~~~")
             
-        if n_electrons > 1: occupancies = [2] * n_occ + [0] * int((len(epsilons) - n_occ))
+        if n_electrons > 1: occupancies = [2] * n_doubly_occ + [0] * int((len(epsilons) - n_doubly_occ))
         else: occupancies = [1] + [0] * (len(epsilons) - 1)
             
         for i in range(len(epsilons)):
             
             if i < 9: print(f"  {i + 1}     {occupancies[i]}     {np.round(epsilons[i],decimals=6)}")
             else: print(f" {i + 1}     {occupancies[i]}     {np.round(epsilons[i],decimals=6)}")
-        print("~~~~~~~~~~~~~~~~~~~~~~")
-        print("\n")
+        print(" ~~~~~~~~~~~~~~~~~~~~~~~\n")
+
+        print(" Molecular orbital coefficients:\n")
 
         symbol_list = []
         n_list = []
         switch_value = 0
 
-        for state in range(len(epsilons)):
+        for mo in range(len(epsilons)):
             
-            if state == 0: print(f"Molecular orbital coefficients for ground state:\n")
-            else: print(f"Molecular orbital coefficients for virtual state {state}:\n")
+            if n_electrons / 2 > mo: occ = "(Occupied)"
+            else: occ = "(Virtual)"
+
+            print(f"\n MO {mo+1} {occ}\n")
                 
-            for i, atom in enumerate(molecule):
+            for i, atom in enumerate(molecule.mol):
                 for j, orbital in enumerate(atom):
                     
                     symbol_list.append(atoms[i])                  
                     n_list.append(j + 1)
                     
-                    if i == 1 and j == 0 and state == 0: switch_value = len(symbol_list) - 1
+                    if i == 1 and j == 0 and mo == 0: switch_value = len(symbol_list) - 1
                 
                 
-            for k in range(len(molecular_orbitals.T[state])):
+            for k in range(len(molecular_orbitals.T[mo])):
                 if k == switch_value: print("")
-                print(" " + symbol_list[k].lower().capitalize() + f"  {n_list[k]}s  :  " + str(np.round(molecular_orbitals.T[state][k], decimals=4)))
-
-            print("")
-            
-
-    
+                print("  " + symbol_list[k].lower().capitalize() + f"  {n_list[k]}s  :  " + str(np.round(molecular_orbitals.T[mo][k], decimals=4)))
                 
+        print("")
                 
-    ionisation_energy, electron_affinity, homo_lumo_gap = calculate_koopman_parameters(epsilons, n_occ)
+    ionisation_energy, electron_affinity, homo_lumo_gap = calculate_koopman_parameters(epsilons, n_doubly_occ)
         
-        
-            
     if type(electron_affinity) == np.float64: electron_affinity = np.round(electron_affinity,decimals=6)
     if type(homo_lumo_gap) == np.float64: homo_lumo_gap = np.round(homo_lumo_gap,decimals=6)
         
-    print(f"\n Koopman's theorem ionisation energy: {ionisation_energy:.6f}")
-    print(f" Koopman's theorem electron affinity: {electron_affinity}")
+    print(f"\n Koopmans' theorem ionisation energy: {ionisation_energy:.6f}")
+    print(f" Koopmans' theorem electron affinity: {electron_affinity}")
     print(f" Energy gap between HOMO and LUMO: {homo_lumo_gap}")
 
-    if len(atoms) != 1:
 
-        B_per_cm, B_GHz = calculate_rotational_constant(m_list, coordinates)
+    if len(molecule.atoms) != 1 and "XH" not in atoms and "XHE" not in atoms:
+
+        B_per_cm, B_GHz = calculate_rotational_constant(masses, coordinates)
                 
-        print(f"\n Rotational constant (GHz): {B_GHz:.5f}")
+        print(f"\n Rotational constant (GHz): {B_GHz:.3f}")
 
-        centre_of_mass = calculate_centre_of_mass(m_list, coordinates)
+        centre_of_mass = calculate_centre_of_mass(masses, coordinates)
 
-        print(f"\n Dipole moment origin is the centre of mass, {centre_of_mass:.4f} Angstroms.")
-        D = integ.evaluate_dipole_integrals(orbitals, centre_of_mass)
+        print(f"\n Dipole moment origin is the centre of mass, {centre_of_mass:.4f} angstroms from the first atom.")
 
         D_nuclear = calculate_nuclear_dipole_moment(centre_of_mass, Z_list, coordinates)        
         D_electronic = calculate_electronic_dipole_moment(P, D)
+
 
         total_dipole = D_nuclear + D_electronic
 
         print("\n ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
         print("                Dipole Moment")
         print(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-        print(f"  Nuclear: {D_nuclear:.5f}    Electronic: {D_electronic:.5f}\n")
 
+        print(f"  Nuclear: {D_nuclear:.5f}    Electronic: {D_electronic:.5f}\n")
         print(f"  Total: {total_dipole:.5f}",end="")
             
-        if total_dipole > 0 or total_dipole < 0: 
+        if total_dipole > 0.00001:
+
             print("        " + molecular_structure, end="")
             print("  +--->")
 
+        elif total_dipole < -0.00001:
+
+            print("        " + molecular_structure, end="")
+            print("  <---+")
+
         else: print(f"           {molecular_structure}")
+
         print(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
         
         
+        bond_order_mulliken, charges_mulliken, total_charges_mulliken, bond_order_lowdin, charges_lowdin, total_charges_lowdin, bond_order_mayer, free_valences, total_valences = calculate_population_analysis(P, S, P_alpha - P_beta, ao_ranges, atoms, Z_list)
     
-        mull_qs, mull_qsum, mull_bo, low_qs, low_qsum, low_bo = population_analysis(P, S, coordinates, Z_list, atoms, ao_ranges)
-        
-            
-        mull_f_qs = []; low_f_qs = []
-            
-        for i, q in enumerate(mull_qs):
-            f_q = f"{q:.5f}"
-            if q >= 0: f_q = " " + f_q 
-            if atoms[i] == "H": f_q = " " + f_q
-            mull_f_qs.append(f_q)
-            
-        for i, q in enumerate(low_qs):
-            f_q = f"{q:.5f}"
-            if q >= 0: f_q = " " + f_q 
-            if atoms[i] == "H": f_q = " " + f_q
-            low_f_qs.append(f_q)
+        space, space2, space3, charges_mulliken, charges_lowdin, free_valences, total_valences, atoms_formatted = format_population_analysis_output(charges_mulliken, charges_lowdin, total_charges_mulliken, bond_order_mulliken, bond_order_lowdin, free_valences, total_valences, atoms)
 
-        if mull_qsum < 0: space = " "
-        else: space = "  "
-        if mull_bo < 0: space2 = ""
-        else: space2 = " "
 
-        print("\n ~~~~~~~~~~~~~~~~~~~~~~~~~~        ~~~~~~~~~~~~~~~~~~~~~~~~~~")
-        print("      Mulliken Charges                   Lowdin Charges")
-        print(" ~~~~~~~~~~~~~~~~~~~~~~~~~~        ~~~~~~~~~~~~~~~~~~~~~~~~~~")
-        print(f"  {atoms[0].lower().capitalize()}: {mull_f_qs[0]}                      {atoms[0].lower().capitalize()}: {low_f_qs[0]}        ")
-        print(f"  {atoms[1].lower().capitalize()}: {mull_f_qs[1]}                      {atoms[1].lower().capitalize()}: {low_f_qs[1]}")
-        print(f"\n  Sum of charges: {mull_qsum:.5f}   {space}      Sum of charges: {low_qsum:.5f}") 
-        print(f"  Bond order: {mull_bo:.5f}      {space2}        Bond order: {low_bo:.5f}") 
-        print(" ~~~~~~~~~~~~~~~~~~~~~~~~~~        ~~~~~~~~~~~~~~~~~~~~~~~~~~")
+        print("\n ~~~~~~~~~~~~~~~~~~~~~~~~~~     ~~~~~~~~~~~~~~~~~~~~~~~~~~     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+        print("      Mulliken Charges                Lowdin Charges              Mayer Free, Bonded, Total Valence")
+        print(" ~~~~~~~~~~~~~~~~~~~~~~~~~~     ~~~~~~~~~~~~~~~~~~~~~~~~~~     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+        print(f"  {atoms_formatted[0]}  {charges_mulliken[0]}                 {atoms_formatted[0]}  {charges_lowdin[0]}                 {atoms_formatted[0]}   {free_valences[0]},  {bond_order_mayer:.5f}, {total_valences[0]}")
+        print(f"  {atoms_formatted[1]}  {charges_mulliken[1]}                 {atoms_formatted[1]}  {charges_lowdin[1]}                 {atoms_formatted[1]}   {free_valences[1]},  {bond_order_mayer:.5f}, {total_valences[1]}")
+        print(f"\n  Sum of charges: {total_charges_mulliken:.5f}   {space}   Sum of charges: {total_charges_lowdin:.5f}") 
+        print(f"  Bond order: {bond_order_mulliken:.5f}      {space2}    Bond order: {bond_order_lowdin:.5f}      {space3}     Bond order: {bond_order_mayer:.5f}") 
+        print(" ~~~~~~~~~~~~~~~~~~~~~~~~~~     ~~~~~~~~~~~~~~~~~~~~~~~~~~     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+
 
     return

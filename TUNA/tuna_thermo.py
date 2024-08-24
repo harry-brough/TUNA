@@ -1,17 +1,20 @@
 import numpy as np
-import tuna_postscf as postscf
-
-k = 3.166811965e-6
-c = 137.035999
-h = 2 * np.pi
+import tuna_util as util
 
 
-def calculate_translational_internal_energy(temperature): return (3 / 2) * k * temperature
+k = util.constants.k
+c = util.constants.c
+h = util.constants.h
+
+
+def calculate_translational_internal_energy(temperature): 
+
+    return (3 / 2) * k * temperature
 
 
 def calculate_rotational_entropy(point_group, temperature, rotational_constant_per_m):
     
-    rotational_constant_per_bohr = bohr_to_angstrom(rotational_constant_per_m) * 1e-10
+    rotational_constant_per_bohr = util.bohr_to_angstrom(rotational_constant_per_m) * 1e-10
 
     if point_group == "Dinfh": symmetry_number = 2
     elif point_group == "Cinfv": symmetry_number = 1
@@ -44,22 +47,22 @@ def calculate_vibrational_entropy(frequency_per_cm, temperature):
 
     vibrational_temperature = calculate_vibrational_temperature(frequency_per_cm)
 
-    S = k * (vibrational_temperature / (temperature * (np.exp(vibrational_temperature/temperature) - 1)) - np.log(1 - np.exp(-vibrational_temperature/temperature)))
+    S = k * (vibrational_temperature / (temperature * (np.exp(vibrational_temperature / temperature) - 1)) - np.log(1 - np.exp(-vibrational_temperature / temperature)))
 
     return S
 
 
 def calculate_translational_entropy(temperature, pressure, mass):
 
-    pressure_atomic_units = pressure / 2.9421912e13
+    pressure_atomic_units = pressure / util.constants.pascal_in_atomic_units
 
-    translational_entropy = k * (5 / 2 + np.log(((2 * np.pi * mass * k * temperature) / (h ** 2) ) ** (3/2) * (k*temperature/pressure_atomic_units)))
+    translational_entropy = k * (5 / 2 + np.log(((h * mass * k * temperature) / (h ** 2) ) ** (3/2) * (k * temperature / pressure_atomic_units)))
 
     return translational_entropy
 
 
 
-def calculate_entropy(temperature, frequency_per_cm, point_group, rotational_constant_per_m, masses, coordinates, pressure):
+def calculate_entropy(temperature, frequency_per_cm, point_group, rotational_constant_per_m, masses, pressure):
 
     translational_entropy = calculate_translational_entropy(temperature, pressure, np.sum(masses))
     rotational_entropy = calculate_rotational_entropy(point_group, temperature, rotational_constant_per_m)
@@ -72,15 +75,16 @@ def calculate_entropy(temperature, frequency_per_cm, point_group, rotational_con
     return S, translational_entropy, rotational_entropy, vibrational_entropy, electronic_entropy
 
 
-def bohr_to_angstrom(length): return 0.52917721090 * length
 
 def calculate_vibrational_temperature(frequency_per_cm):
 
-    frequency_per_bohr = bohr_to_angstrom(frequency_per_cm) * 1e-8
+    frequency_per_bohr = util.bohr_to_angstrom(frequency_per_cm) * 1e-8
 
     vibrational_temperature = h * frequency_per_bohr * c / k
 
     return vibrational_temperature
+
+
 
 def calculate_internal_energy(E, E_ZPE, temperature, frequency_per_cm):
 
@@ -96,4 +100,4 @@ def calculate_internal_energy(E, E_ZPE, temperature, frequency_per_cm):
 
 def calculate_enthalpy(U, temperature): return U + k * temperature
 
-def calculate_free_energy(H, temperature, S): return H - temperature *S
+def calculate_free_energy(H, temperature, S): return H - temperature * S

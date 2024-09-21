@@ -71,7 +71,7 @@ def calculate_forces(coordinates, calculation, atoms, rotation_matrix):
     Returns the 3D forces (array).
     """
 
-    force = optfreq.calculate_gradient(coordinates, calculation, atoms)
+    force = optfreq.calculate_gradient(coordinates, calculation, atoms, silent=True)
 
     force_array_1d = [0.0, 0.0, force]
 
@@ -103,14 +103,14 @@ def print_md_status(step, time, bond_length, temperature, potential_energy, kine
 
 
 
-def calculate_md_components(scf_output, molecule, masses, velocities, starting_energy, degrees_of_freedom):
+def calculate_md_components(molecule, masses, velocities, starting_energy, degrees_of_freedom, energy):
 
     """
     Requires SCF output (Output object), molecule (Molecule object), masses (array), velocities (array), starting energy (float) and degrees of freedom (int).
     
     Calculates and returns potential energy (float), kinetic energy (float), their sum (float), temperature (float, via kinetic energies), bond length (float) and the energy drift (float) from the start of the simulation."""
 
-    potential_energy = scf_output.energy
+    potential_energy = energy
     kinetic_energy = calculate_kinetic_energy(masses, velocities)
 
     total_energy = kinetic_energy + potential_energy
@@ -145,7 +145,7 @@ def run_md(calculation, atoms, coordinates):
     #Convert to atomic units from femtoseconds for integration
     timestep_au = timestep / util.constants.atomic_time_in_femtoseconds
 
-    print(f"\nBeginning TUNA molecular dynamics calculation with {n_steps} steps in the NVE ensemble...")
+    print(f"\nBeginning TUNA molecular dynamics calculation with {n_steps} steps in the NVE ensemble...\n")
     print(f"Using timestep of {timestep:.3f} femtoseconds and initial temperature of {initial_temperature:.2f} K.")
 
     if calculation.trajectory: 
@@ -161,7 +161,7 @@ def run_md(calculation, atoms, coordinates):
     print(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
     #Remains silent to prevent too much printing, just prints to table
-    scf_output, molecule = energ.calculate_energy(calculation, atoms, coordinates, silent=True)
+    scf_output, molecule, energy, _ = energ.calculate_energy(calculation, atoms, coordinates, silent=True)
 
 
     masses = molecule.masses
@@ -172,9 +172,9 @@ def run_md(calculation, atoms, coordinates):
     velocities = calculate_initial_velocities(masses, initial_temperature, degrees_of_freedom)
 
     #Total energy of molecule is nuclear potential energy (electronic energy) and classically calculated kinetic energy
-    initial_energy = scf_output.energy + calculate_kinetic_energy(masses, velocities)
+    initial_energy = energy + calculate_kinetic_energy(masses, velocities)
 
-    potential_energy, kinetic_energy, total_energy, temperature, bond_length, drift = calculate_md_components(scf_output, molecule, masses, velocities, initial_energy, degrees_of_freedom)
+    potential_energy, kinetic_energy, total_energy, temperature, bond_length, drift = calculate_md_components(molecule, masses, velocities, initial_energy, degrees_of_freedom, energy)
 
     print_md_status(0, time, bond_length, temperature, potential_energy, kinetic_energy, total_energy, drift)
 
@@ -204,7 +204,7 @@ def run_md(calculation, atoms, coordinates):
         aligned_coordinates = np.array([[0.0, 0.0, 0.0], -1 * difference_vector_rotated])
 
         #Additional print makes a big mess - prints all energy calculations to console
-        scf_output, molecule = energ.calculate_energy(calculation, atoms, aligned_coordinates, P_guess=P_guess, E_guess=E_guess, silent=not(calculation.additional_print))  
+        scf_output, molecule, energy, _ = energ.calculate_energy(calculation, atoms, aligned_coordinates, P_guess=P_guess, E_guess=E_guess, silent=not(calculation.additional_print))  
 
         forces = calculate_forces(aligned_coordinates, calculation, atoms, rotation_matrix)
 
@@ -214,7 +214,7 @@ def run_md(calculation, atoms, coordinates):
         accelerations = accelerations_new
         time += timestep
 
-        potential_energy, kinetic_energy, total_energy, temperature, bond_length, drift = calculate_md_components(scf_output, molecule, masses, velocities, initial_energy, degrees_of_freedom)
+        potential_energy, kinetic_energy, total_energy, temperature, bond_length, drift = calculate_md_components(molecule, masses, velocities, initial_energy, degrees_of_freedom, energy)
 
         #By default prints trajectory to file, can be viewed with Jmol
         if calculation.trajectory: optfreq.print_trajectory(molecule, potential_energy, coordinates)

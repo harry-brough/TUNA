@@ -1,7 +1,7 @@
 import numpy as np
-import scipy.special as special
+from scipy.special import erf
 
-def special_function(x): return np.where(x == 0, 1, (0.5 * (np.pi / (x + 1e-17)) ** 0.5) * special.erf((x + 1e-17) ** 0.5))
+def special_function(x): return np.where(x == 0, 1, (0.5 * (np.pi / (x + 1e-17)) ** 0.5) * erf((x + 1e-17) ** 0.5))
 
 
 def evaluate_integrals(orbitals, Z_list, atomic_coords, centre_of_mass, two_electron_ints=True):
@@ -106,3 +106,41 @@ def evaluate_integrals(orbitals, Z_list, atomic_coords, centre_of_mass, two_elec
 
 
     return S, T, V_NE, D, V_EE
+
+
+def dipoe(orbitals, centre_of_mass):
+
+    nbasis = len(orbitals)
+    D = np.zeros([nbasis, nbasis])
+
+
+    for i in range(nbasis):
+        for j in range(i, nbasis):  
+
+            alphas_m = np.array([pg.alpha for pg in orbitals[i]])
+            alphas_n = np.array([pg.alpha for pg in orbitals[j]])
+
+            coeffs_m = np.array([pg.coeff for pg in orbitals[i]])
+            coeffs_n = np.array([pg.coeff for pg in orbitals[j]])
+
+            R_m = np.array([pg.coordinates for pg in orbitals[i]])
+            R_n = np.array([pg.coordinates for pg in orbitals[j]])
+
+            sum_mn = alphas_m[:, np.newaxis] + alphas_n
+            product_mn = alphas_m[:, np.newaxis] * alphas_n
+            coeffproduct_mn = coeffs_m[:, np.newaxis] * coeffs_n
+            R_mn = np.linalg.norm(R_m[:, np.newaxis] - R_n, axis=2)
+
+            R_m_com = R_m - np.array([0, 0, centre_of_mass])
+            R_n_com = R_n - np.array([0, 0, centre_of_mass])
+
+            alpha_m_R_m_com = np.einsum("i, ij->ij", alphas_m, R_m_com)
+            alpha_n_R_n_com = np.einsum("i, ij->ij", alphas_n, R_n_com)
+                    
+            OM_mn = coeffproduct_mn * (4 * product_mn / sum_mn ** 2) ** (3 / 4) * np.exp(-(product_mn / sum_mn) * R_mn ** 2)
+
+            Rk_dipole = np.einsum("ijk,ij->ij", alpha_m_R_m_com[:, np.newaxis] + alpha_n_R_n_com, 1 / sum_mn)
+
+            D[i,j] += np.einsum("mn,mn->", OM_mn, Rk_dipole)
+
+    return D

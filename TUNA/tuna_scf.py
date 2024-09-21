@@ -210,6 +210,7 @@ def update_diis(Fock_vector, error_vector, F, X, n_doubly_occ, n_electrons_per_o
     right_hand_side = np.zeros((dimension))
     right_hand_side[-1] = -1
 
+
     try: 
         
         coeff = np.linalg.solve(B, right_hand_side)
@@ -235,8 +236,8 @@ def update_diis(Fock_vector, error_vector, F, X, n_doubly_occ, n_electrons_per_o
 
 def check_convergence(scf_conv, step, delta_E, maxDP, rmsDP, orbital_gradient, silent=False):
 
-    if delta_E < scf_conv.get("delta_E") and maxDP < scf_conv.get("maxDP") and rmsDP < scf_conv.get("rmsDP") and orbital_gradient < scf_conv.get("orbitalGrad"): 
-            
+    if np.abs(delta_E) < scf_conv.get("delta_E") and np.abs(maxDP) < scf_conv.get("maxDP") and np.abs(rmsDP) < scf_conv.get("rmsDP") and np.abs(orbital_gradient) < scf_conv.get("orbitalGrad"): 
+
         if not silent:
 
             print("\n ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
@@ -257,7 +258,7 @@ def SCF(molecule, calculation, T, V_NE, V_EE, V_NN, S, X, E_guess, P=None, P_alp
         print(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
         print("                                            SCF Cycle Iterations")
         print(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-        print("  Step          E                  DE             RMS-DP           MAX-DP           [F,P]        Damping")
+        print("  Step          E                  DE             RMS(DP)          MAX(DP)          [F,PS]       Damping")
         print(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
 
@@ -331,8 +332,18 @@ def SCF(molecule, calculation, T, V_NE, V_EE, V_NN, S, X, E_guess, P=None, P_alp
 
                 kinetic_energy, nuclear_electron_energy, coulomb_energy, exchange_energy = calculate_energy_components(P, T, V_NE, J, K)
                   
+                molecular_orbitals_alpha = molecular_orbitals
+                molecular_orbitals_beta = molecular_orbitals
 
-                return E, molecular_orbitals, epsilons, kinetic_energy, nuclear_electron_energy, coulomb_energy, exchange_energy, P, P_alpha, P_beta
+                epsilons_alpha = epsilons
+                epsilons_beta = epsilons
+
+                P_alpha = P / 2
+                P_beta = P / 2
+
+                scf_output = util.Output(E, S, P, P_alpha, P_beta, molecular_orbitals, molecular_orbitals_alpha, molecular_orbitals_beta, epsilons, epsilons_alpha, epsilons_beta)
+                
+                return scf_output, kinetic_energy, nuclear_electron_energy, coulomb_energy, exchange_energy
 
 
     elif reference == "UHF":
@@ -417,8 +428,10 @@ def SCF(molecule, calculation, T, V_NE, V_EE, V_NN, S, X, E_guess, P=None, P_alp
                 epsilons = epsilons_combined[np.argsort(epsilons_combined)]
                 molecular_orbitals = molecular_orbitals_combined[:, np.argsort(epsilons_combined)]
 
+                scf_output = util.Output(E, S, P, P_alpha, P_beta, molecular_orbitals, molecular_orbitals_alpha, molecular_orbitals_beta, epsilons, epsilons_alpha, epsilons_beta)
 
-                return E, molecular_orbitals, epsilons, kinetic_energy, nuclear_electron_energy, coulomb_energy, exchange_energy, P, P_alpha, P_beta
+                return scf_output, kinetic_energy, nuclear_electron_energy, coulomb_energy, exchange_energy
+            
 
    
     util.error(f"Self-consistent field not converged in {maximum_iterations} iterations! Increase maximum iterations or give up.")

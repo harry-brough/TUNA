@@ -43,5 +43,12 @@ pip install QuantumTUNA
 
 ### Running
 
-Add the folder where TUNA was installed (on Windows this may be ```/AppData/Local/Programs/Python/Python312/Lib/site-packages/TUNA/```) to PATH, and then run ```tuna --version``` which should print the correct version if TUNA has installed correctly.
+Add the folder where TUNA was installed to PATH, and then run ```TUNA --version``` which should print the correct version if TUNA has installed correctly.
 
+The syntax of the command to run a TUNA calculation is:
+
+```
+TUNA [Calculation] : [Atom A] [Atom B] [Distance] : [Method] [Basis]
+```
+
+Read the manual for details!

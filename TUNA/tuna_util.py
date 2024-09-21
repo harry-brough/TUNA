@@ -3,8 +3,8 @@ import time, sys
 import tuna_basis as basis_sets
 from termcolor import colored
 
-calculation_types = {"SPE": "Single point energy", "OPT": "Geometry optimisation", "FREQ": "Harmonic frequency", "OPTFREQ": "Optimisation and harmonic frequency", "SCAN": "Coordinate scan", "MD": "Ab initio molecular dynamics"}
-method_types = {"HF": "Hartree-Fock theory", "RHF": "restricted Hartree-Fock theory", "RHF": "unrestricted Hartree-Fock theory", "MP2": "MP2 theory", "SCS-MP2": "spin-component-scaled MP2 theory"}
+calculation_types = {"SPE": "Single point energy", "OPT": "Geometry optimisation", "FREQ": "Harmonic frequency", "OPTFREQ": "Optimisation and harmonic frequency", "SCAN": "Coordinate scan", "MD": "Ab initio molecular dynamics", "ANHARM": "Anharmonic frequency"}
+method_types = {"HF": "Hartree-Fock theory", "RHF": "restricted Hartree-Fock theory", "RHF": "unrestricted Hartree-Fock theory", "MP2": "MP2 theory", "UMP2": "unrestricted MP2 theory", "SCS-MP2": "spin-component-scaled MP2 theory", "MP3": "MP3 theory", "UMP3": "unrestricted MP3 theory", "SCS-MP3": "spin-component-scaled MP3 theory"}
 
 
 class Constants:
@@ -18,6 +18,7 @@ class Constants:
 
         self.c_in_metres_per_second = 299792458
         self.k_in_joules_per_kelvin = 1.380649e-23
+        self.atomic_mass_unit_in_kg = 1.660539068911e-27
 
         self.reduced_planck_constant_in_joules_seconds = self.planck_constant_in_joules_seconds / (2 * np.pi)
 
@@ -26,6 +27,7 @@ class Constants:
         self.atomic_time_in_seconds = self.reduced_planck_constant_in_joules_seconds /  self.hartree_in_joules
         self.atomic_time_in_femtoseconds = self.atomic_time_in_seconds * 10 ** 15
         self.bohr_radius_in_angstrom = self.bohr_in_metres * 10 ** 10
+
         self.pascal_in_atomic_units = self.hartree_in_joules / self.bohr_in_metres ** 3
 
         self.per_cm_in_hartree = self.hartree_in_joules / (self.c_in_metres_per_second * self.planck_constant_in_joules_seconds * 10 ** 2)
@@ -35,9 +37,8 @@ class Constants:
         self.k = self.k_in_joules_per_kelvin / self.hartree_in_joules
         self.h = self.planck_constant_in_joules_seconds / (self.hartree_in_joules * self.atomic_time_in_seconds)
 
-        self.atomic_mass_unit_in_kg = 1.660539068911e-27
         self.atomic_mass_unit_in_electron_mass = self.atomic_mass_unit_in_kg / self.electron_mass_in_kilograms
-        
+
         self.atom_masses_in_amu = {"H": 1.00782503223, "HE": 4.00260325413}
         self.atom_masses = {"H": self.atom_masses_in_amu.get("H") * self.atomic_mass_unit_in_electron_mass, "HE": self.atom_masses_in_amu.get("HE") * self.atomic_mass_unit_in_electron_mass}
 
@@ -57,7 +58,7 @@ def three_dimensions_to_one(coordinates): return np.array([atom_coord[2] for ato
 
 def finish_calculation(calculation):
 
-    end_time = time.time()
+    end_time = time.perf_counter()
     total_time = end_time - calculation.start_time
 
     print(colored(f"\n{calculation_types.get(calculation.calculation_type)} calculation in TUNA completed successfully in {total_time:.2f} seconds.  :)\n","white"))
@@ -69,13 +70,12 @@ def finish_calculation(calculation):
 class Calculation:
 
     loose = {"delta_E": 0.000001, "maxDP": 0.00001, "rmsDP": 0.000001, "orbitalGrad": 0.0001, "word": "loose"}
-    medium = {"delta_E": 0.0000001, "maxDP": 0.000001, "rmsDP": 0.0000001, "orbitalGrad": 0.00001, "word": "medium"}
+    normal = {"delta_E": 0.0000001, "maxDP": 0.000001, "rmsDP": 0.0000001, "orbitalGrad": 0.00001, "word": "medium"}
     tight = {"delta_E": 0.000000001, "maxDP": 0.00000001, "rmsDP": 0.000000001, "orbitalGrad": 0.0000001, "word": "tight"}
     extreme = {"delta_E": 0.00000000001, "maxDP": 0.0000000001, "rmsDP": 0.00000000001, "orbitalGrad": 0.000000001, "word": "extreme"}   
-    maximum = {"delta_E": 0.00000000000001, "maxDP": 0.0000000000001, "rmsDP": 0.00000000000001, "orbitalGrad": 0.000000000001, "word": "maximum"}   
 
     looseopt = {"gradient": 0.001, "step": 0.01, "word": "loose"}
-    mediumopt = {"gradient": 0.0001, "step": 0.0001, "word": "medium"}
+    normalopt = {"gradient": 0.0001, "step": 0.0001, "word": "medium"}
     tightopt = {"gradient": 0.000001, "step": 0.00001, "word": "tight"}
     extremeopt = {"gradient": 0.00000001, "step": 0.0000001, "word": "extreme"}
 
@@ -88,16 +88,19 @@ class Calculation:
         self.method = method
         self.start_time = start_time
         self.basis = basis
+        self.mp2_type = None
         
         self.additional_print = False
+        self.terse = False
         self.charge = 0
         self.multiplicity = 1
         self.multiplicity_defined = False
         self.norotate_guess = False
         self.rotate_guess = False
         
-        if self.calculation_type == "OPT" or self.calculation_type == "OPTFREQ" or self.calculation_type == "FREQ": self.scf_conv = self.extreme
-        else: self.scf_conv = self.tight
+        if self.calculation_type == "OPT" or self.calculation_type == "FREQ" or self.calculation_type == "OPTFREQ" or self.calculation_type == "MD": self.scf_conv = self.tight
+        else: self.scf_conv = self.normal
+
         self.slowconv = False
         self.veryslowconv = False
         self.diis = True
@@ -124,13 +127,14 @@ class Calculation:
         self.d2 = False
         self.geom_max_iter = 20
         self.decontract = False
+        self.theta = np.pi / 4
 
         if self.calculation_type == "MD": self.temperature = 0
         else: self.temperature = 298.15
 
         self.pressure = 101325
 
-        if params is not None: self.process_params(params)
+        self.process_params(params)
 
 
     def process_params(self, params):
@@ -146,6 +150,7 @@ class Calculation:
         if "D2" in params: self.d2 = True
         if "CALCHESS" in params: self.calchess = True
         if "P" in params: self.additional_print = True
+        elif "T" in params: self.terse = True
         if "NOMOREAD" in params: self.nomoread = True
         if "OPTMAX" in params: self.optmax = True
         if "TRAJ" in params: self.trajectory = True
@@ -165,13 +170,12 @@ class Calculation:
 
 
         if "LOOSE" in params or "LOOSESCF" in params: self.scf_conv = self.loose  
-        elif "MEDIUM" in params or "MEDIUMSCF" in params: self.scf_conv = self.medium  
-        elif "TIGHT" in params or "TIGHT" in params: self.scf_conv = self.tight   
+        elif "NORMAL" in params or "NORMALSCF" in params: self.scf_conv = self.normal  
+        elif "TIGHT" in params or "TIGHTSCF" in params: self.scf_conv = self.tight   
         elif "EXTREME" in params or "EXTREMESCF" in params: self.scf_conv = self.extreme 
-        elif "MAXIMUM" in params or "MAXIMUMSCF" in params: self.scf_conv = self.maximum   
 
         if "LOOSEOPT" in params: self.geom_conv = self.looseopt  
-        elif "MEDIUMOPT" in params: self.geom_conv = self.mediumopt  
+        elif "NORMALOPT" in params: self.geom_conv = self.normalopt  
         elif "TIGHTOPT" in params: self.geom_conv = self.tightopt 
         elif "EXTREMEOPT" in params: self.geom_conv = self.extremeopt    
 
@@ -179,7 +183,7 @@ class Calculation:
         def get_param_value(param_name, value_type):
 
             if param_name in params:
-                
+
                 try: return value_type(params[params.index(param_name) + 1])
                 except IndexError: error(f"Parameter \"{param_name}\" requested but no value specified!")
                 except ValueError: error(f"ERROR: Parameter \"{param_name}\" must be of type {value_type.__name__}!")
@@ -205,6 +209,8 @@ class Calculation:
         self.pressure = get_param_value("PRES", float) or self.pressure
         self.pressure = get_param_value("PRESSURE", float) or self.pressure
 
+        self.theta = get_param_value("THETA", float) * np.pi / 180 if get_param_value("THETA", float) else self.theta
+        
         self.default_multiplicity = False if "ML" in params or "MULTIPLICITY" in params else True
 
 
@@ -233,6 +239,7 @@ class Molecule:
         self.molecular_structure = self.determine_molecular_structure()
 
         self.mol = [basis_sets.generate_atomic_orbitals(atom, self.basis, coord) for atom, coord in zip(self.atoms, self.coordinates)]    
+        self.ao_ranges = [len(basis_sets.generate_atomic_orbitals(atom, self.basis, coord)) for atom, coord in zip(self.atoms, self.coordinates)]
         self.atomic_orbitals = [orbital for atom_orbitals in self.mol for orbital in atom_orbitals]  
         self.pgs = [pg for atomic_orbital in self.atomic_orbitals for pg in atomic_orbital]
 
@@ -243,25 +250,51 @@ class Molecule:
 
 
 
-
         if calculation.method == "UHF": calculation.reference = "UHF"
         elif calculation.method == "RHF": calculation.reference = "RHF"
-        elif calculation.method in ["HF", "MP2", "SCS-MP2"] and self.multiplicity == 1: calculation.reference = "RHF"
-        else: calculation.reference = "UHF"
+        elif calculation.method == "HF" and self.multiplicity == 1: calculation.reference = "RHF"
+        elif calculation.method == "HF" and self.multiplicity != 1: calculation.reference = "UHF"
+
+        elif calculation.method == "UMP2": 
+            calculation.reference = "UHF"
+            calculation.mp2_basis = "SO"
+        elif calculation.method in ["MP2", "SCS-MP2", "SCS-MP3"] and self.multiplicity == 1: 
+            calculation.reference = "RHF"
+            calculation.mp2_basis = "MO"
+        elif calculation.method == "MP2" and self.multiplicity != 1: 
+            calculation.reference = "UHF"
+            calculation.mp2_basis = "SO"
+        elif calculation.method == "SCS-MP2" and self.multiplicity != 1:
+
+            if self.n_electrons != 1: error("Using unrestricted references with SCS-MP2 is not supported yet!")
+            else: calculation.reference = "RHF"; calculation.mp2_basis = "MO"
+
+        elif calculation.method == "SCS-MP3" and self.multiplicity != 1:
+
+            if self.n_electrons != 1: error("Using unrestricted references with SCS-MP3 is not supported yet!")
+            else: calculation.reference = "RHF"; calculation.mp2_basis = "MO"
+
+        elif calculation.method == "UMP3": calculation.reference = "UHF"
+        elif calculation.method == "RMP3": calculation.reference = "RHF"
+        elif calculation.method == "MP3" and self.multiplicity == 1: calculation.reference = "RHF"
+        elif calculation.method == "MP3" and self.multiplicity != 1: calculation.reference = "UHF"
+
+        if calculation.method in ["MP3", "RMP3", "UMP3"]: calculation.mp2_basis = "SO" 
+    
+
 
 
         self.n_unpaired_electrons = self.multiplicity - 1
         self.n_alpha = int((self.n_electrons + self.n_unpaired_electrons) / 2)
         self.n_beta = int(self.n_electrons - self.n_alpha)
         self.n_doubly_occ = min(self.n_alpha, self.n_beta)
+        self.n_occ = self.n_alpha + self.n_beta
 
 
         if self.n_electrons % 2 == 0 and self.multiplicity % 2 == 0: error("Impossible charge and multiplicity combination (both even)!")
         if self.n_electrons % 2 != 0 and self.multiplicity % 2 != 0: error("Impossible charge and multiplicity combination (both odd)!")
         if self.n_electrons - self.multiplicity < -1: error("Multiplicity too high for number of electrons!")
         if self.multiplicity < 1: error("Multiplicity must be at least 1!")
-
-
 
 
         calculation.n_electrons_per_orbital = 2 if calculation.reference == "RHF" else 1
@@ -291,17 +324,28 @@ class Molecule:
 
 class Output:
 
-    def __init__(self, energy, P, S, ao_ranges, epsilons, molecular_orbitals, D, P_alpha, P_beta):
+    def __init__(self, energy, S, P, P_alpha, P_beta, molecular_orbitals, molecular_orbitals_alpha, molecular_orbitals_beta, epsilons, epsilons_alpha, epsilons_beta):
 
         self.energy = energy
+
         self.P = P
+        self.S = S
+
+
         self.P_alpha = P_alpha
         self.P_beta = P_beta
-        self.S = S
-        self.D = D
-        self.ao_ranges = ao_ranges
-        self.epsilons = epsilons
+
         self.molecular_orbitals = molecular_orbitals
+        self.molecular_orbitals_alpha = molecular_orbitals_alpha
+        self.molecular_orbitals_beta = molecular_orbitals_beta
+
+        self.epsilons = epsilons
+        self.epsilons_alpha = epsilons_alpha
+        self.epsilons_beta = epsilons_beta
+
+        self.epsilons_combined = np.append(self.epsilons_alpha, self.epsilons_beta)
+
+
 
 
 def rotate_coordinates_to_z_axis(difference_vector):
@@ -341,6 +385,19 @@ def rotate_coordinates_to_z_axis(difference_vector):
 
 
 
-def error(message): sys.exit(colored(f"\nERROR: {message}  :(\n","light_red"))
+def error(message): 
+    
+    print(colored(f"\nERROR: {message}  :(\n","light_red"))
+    sys.exit()
 
-def warning(message): print(colored(f"\nWARNING: {message}\n","light_yellow"))
+def warning(message, space=1): print(colored(f"\n{" " * space}WARNING: {message}","light_yellow"))
+
+
+def big_log(message, calculation, end="\n"):
+
+    if calculation.additional_print: print(message, end=end)
+
+
+def log(message, calculation, end="\n"):
+
+    if not calculation.terse: print(message, end=end)

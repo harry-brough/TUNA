@@ -34,13 +34,14 @@ def calculate_rotational_constant(masses, coordinates):
     return rotational_constant_per_cm, rotational_constant_GHz
 
 
-def calculate_koopman_parameters(epsilons, n_doubly_occ):
+def calculate_koopman_parameters(epsilons, n_occ):
 
-    ionisation_energy = -1 * epsilons[n_doubly_occ - 1]
+
+    ionisation_energy = -1 * epsilons[n_occ - 1]
         
-    if len(epsilons) > n_doubly_occ: 
+    if len(epsilons) > n_occ: 
     
-        electron_affinity = -1 * epsilons[n_doubly_occ]
+        electron_affinity = -1 * epsilons[n_occ]
         homo_lumo_gap = ionisation_energy - electron_affinity
         
     else: 
@@ -117,7 +118,7 @@ def construct_electron_density(P, grid_density, molecule):
     return n
 
 
-def print_energy_components(nuclear_electron_energy, kinetic_energy, exchange_energy, coulomb_energy, V_NN):
+def print_energy_components(nuclear_electron_energy, kinetic_energy, exchange_energy, coulomb_energy, V_NN, calculation):
 
 
     one_electron_energy = nuclear_electron_energy + kinetic_energy
@@ -125,24 +126,24 @@ def print_energy_components(nuclear_electron_energy, kinetic_energy, exchange_en
     electronic_energy = one_electron_energy + two_electron_energy
     total_energy = electronic_energy + V_NN
             
-    print(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")      
-    print("              Energy Components       ")
-    print(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    util.log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation)      
+    util.log("              Energy Components       ", calculation)
+    util.log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation)
             
 
-    print(f"  Kinetic energy:              {kinetic_energy:.10f}")
+    util.log(f"  Kinetic energy:              {kinetic_energy:.10f}", calculation)
 
-    print(f"  Coulomb energy:              {coulomb_energy:.10f}")
-    print(f"  Exchange energy:            {exchange_energy:.10f}")
-    print(f"  Nuclear repulsion energy:    {V_NN:.10f}")
-    print(f"  Nuclear attraction energy:  {nuclear_electron_energy:.10f}\n")      
+    util.log(f"  Coulomb energy:              {coulomb_energy:.10f}", calculation)
+    util.log(f"  Exchange energy:            {exchange_energy:.10f}", calculation)
+    util.log(f"  Nuclear repulsion energy:    {V_NN:.10f}", calculation)
+    util.log(f"  Nuclear attraction energy:  {nuclear_electron_energy:.10f}\n", calculation)      
 
-    print(f"  One-electron energy:        {one_electron_energy:.10f}")
-    print(f"  Two-electron energy:         {two_electron_energy:.10f}")
-    print(f"  Electronic energy:          {electronic_energy:.10f}\n")
+    util.log(f"  One-electron energy:        {one_electron_energy:.10f}", calculation)
+    util.log(f"  Two-electron energy:         {two_electron_energy:.10f}", calculation)
+    util.log(f"  Electronic energy:          {electronic_energy:.10f}\n", calculation)
             
-    print(f"  Total energy:               {total_energy:.10f}")
-    print(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")  
+    util.log(f"  Total energy:               {total_energy:.10f}", calculation)
+    util.log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation)  
 
     return
 
@@ -234,8 +235,8 @@ def format_population_analysis_output(charges_mulliken, charges_lowdin, total_ch
 
     """
 
-    space = "" if total_charges_mulliken < 0 else " "
-    space2 = "" if bond_order_mulliken < 0 else " "
+    space = "" if total_charges_mulliken < 0 else "  "
+    space2 = "" if bond_order_mulliken < 0 else "  "
     space3 = "" if bond_order_lowdin < 0 else " "
 
     atoms_formatted = []
@@ -279,9 +280,11 @@ def post_scf_output(molecule, calculation, epsilons, molecular_orbitals, P, S, a
     Z_list = molecule.Z_list
     molecular_structure = molecule.molecular_structure
 
-    if method == "MP2": print("\n Using the MP2 unrelaxed density for property calculations.")
-    if method == "SCS-MP2": print(colored(" WARNING: The SCS-MP2 density is not implemented! Using unscaled MP2 density for property calculations.","light_yellow"))
-    
+    if method == "MP2" and calculation.reference == "RHF": print("\n Using the MP2 unrelaxed density for property calculations.")
+    elif method == "SCS-MP2": util.warning("The SCS-MP2 density is not implemented! Using unscaled MP2 density for property calculations.")
+    elif method == "UMP2" or method == "MP2" and calculation.reference == "UHF" or method == "MP3" and calculation.reference == "UHF" or method == "UMP3": util.warning("Using the unrestricted Hartree-Fock density for property calculations.")
+    elif method == "MP3" or method == "SCS-MP3": util.warning("Using the Hartree-Fock density for property calculations.")
+
     if additional_print:
             
         print("\n Molecular orbital eigenvalues:\n")
@@ -325,9 +328,11 @@ def post_scf_output(molecule, calculation, epsilons, molecular_orbitals, P, S, a
                 print("  " + symbol_list[k].lower().capitalize() + f"  {n_list[k]}s  :  " + str(np.round(molecular_orbitals.T[mo][k], decimals=4)))
                 
         print("")
-                
-    ionisation_energy, electron_affinity, homo_lumo_gap = calculate_koopman_parameters(epsilons, n_doubly_occ)
-        
+
+    if molecule.n_occ % 2 == 0: ionisation_energy, electron_affinity, homo_lumo_gap = calculate_koopman_parameters(epsilons, molecule.n_doubly_occ)
+    else: ionisation_energy, electron_affinity, homo_lumo_gap = calculate_koopman_parameters(epsilons, molecule.n_occ)
+
+
     if type(electron_affinity) == np.float64: electron_affinity = np.round(electron_affinity,decimals=6)
     if type(homo_lumo_gap) == np.float64: homo_lumo_gap = np.round(homo_lumo_gap,decimals=6)
         
@@ -344,7 +349,7 @@ def post_scf_output(molecule, calculation, epsilons, molecular_orbitals, P, S, a
 
         centre_of_mass = calculate_centre_of_mass(masses, coordinates)
 
-        print(f"\n Dipole moment origin is the centre of mass, {centre_of_mass:.4f} angstroms from the first atom.")
+        print(f"\n Dipole moment origin is the centre of mass, {util.bohr_to_angstrom(centre_of_mass):.4f} angstroms from the first atom.")
 
         D_nuclear = calculate_nuclear_dipole_moment(centre_of_mass, Z_list, coordinates)        
         D_electronic = calculate_electronic_dipole_moment(P, D)
@@ -352,12 +357,12 @@ def post_scf_output(molecule, calculation, epsilons, molecular_orbitals, P, S, a
 
         total_dipole = D_nuclear + D_electronic
 
-        print("\n ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+        print("\n ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
         print("                Dipole Moment")
-        print(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+        print(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
-        print(f"  Nuclear: {D_nuclear:.5f}    Electronic: {D_electronic:.5f}\n")
-        print(f"  Total: {total_dipole:.5f}",end="")
+        print(f"  Nuclear: {D_nuclear:.6f}    Electronic: {D_electronic:.6f}\n")
+        print(f"  Total: {total_dipole:.6f}",end="")
             
         if total_dipole > 0.00001:
 
@@ -371,7 +376,7 @@ def post_scf_output(molecule, calculation, epsilons, molecular_orbitals, P, S, a
 
         else: print(f"           {molecular_structure}")
 
-        print(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+        print(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
         
         
         bond_order_mulliken, charges_mulliken, total_charges_mulliken, bond_order_lowdin, charges_lowdin, total_charges_lowdin, bond_order_mayer, free_valences, total_valences = calculate_population_analysis(P, S, P_alpha - P_beta, ao_ranges, atoms, Z_list)

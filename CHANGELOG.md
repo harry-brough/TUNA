@@ -4,10 +4,11 @@
 
 ### Added
 
-- Anharmonic frequencies from numerical solution of nuclear Schrödinger equation
 - *Ab initio* molecular dynamics
-- Unrestricted Hartree--Fock
+- Unrestricted Hartree--Fock energy and density
 - Unrestricted MP2 energies
+- Restricted and unrestricted MP3 energies
+- Spin-component-scaled MP3 energies
 - Keyword to decontract basis functions, `DECONTRACT`
 - New basis sets: 4-31G, 6-31+G, 6-31++G, and 6-311+G
 - Mayer bond order, free and total valences
@@ -26,6 +27,7 @@
 - Rewrote all the code to make things object-oriented, improve efficiency and reduce redundancy
 - Slimmed down the fish logo :(
 - Optimised and simplified integral engine
+- Reduced default SCF and optimisation convergence criteria by fixing associated bug
 - Better handling of print levels; optimizations now only calculate properties at the end by default
 - Now use more energy evaluations for gradients and Hessians, making them more robust but slower 
 - Generally refined the output, making information more precise and clear
@@ -33,6 +35,8 @@
 ### Fixed
 
 - When its equations can't be solved, DIIS now resets instead of crashing the program
+- Fixed frequency calculations being far too sensitive to SCF convergence when guess density was read in
+- SCF convergence was checking that DeltaE was less than the criteria, rather than its magnitude leading to too early convergence
 - Fixed the thermochemistry module mixing up the temperature and pressure variables
 - Formatting issues with population analysis
 - Fixed handling of ghost atoms, accessible by `XH` or `XHe`

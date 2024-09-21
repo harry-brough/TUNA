@@ -4,6 +4,7 @@ from termcolor import colored
 
 print(colored("\n      _______ _    _ _   _                     ___           \n     |__   __| |  | | \\ | |   /\\            __/__/__  _      \n","white")+ colored("~~~~~~","light_grey")+colored("  | |  | |  | |  \\| |  /  \\","white")+colored(" ~~~~~~~~","light_grey")+colored(" / .      \\/ ) ","white")+colored("~~~~\n ~~~~~~","light_grey")+colored(" | |  | |  | | . ` | / /\\ \\","white")+colored(" ~~~~~~","light_grey")+colored(" (     ))    (","white")+colored(" ~~~~~\n ~~~~~~","light_grey")+colored(" | |  | |__| | |\\  |/ ____ \\ ","white")+colored("~~~~~~","light_grey")+colored(" \\___  ___/\\_) ","white")+colored("~~~~","light_grey")+colored("\n        |_|   \\____/|_| \\_/_/    \\_\\          \\\\_\\           ", "white"))
 print("\n")
+
 print(f"Welcome to version {version_number} of TUNA (Theoretical Unification of Nuclear Arrangements)!\n")
 print("Importing required libraries...    ",end="")
 
@@ -18,14 +19,14 @@ import tuna_md as md
 
 print("[Done]\n")
 
-start_time = time.time()
+start_time = time.perf_counter()
 
 
 def parse_input():
 
     atom_options = ["XH", "XHE", "H", "HE"]
     calculation_options = ["SPE", "OPT", "SCAN", "FREQ", "OPTFREQ", "MD", "ANHARM"]
-    method_options = ["HF", "RHF", "UHF", "MP2", "SCS-MP2"]
+    method_options = ["HF", "RHF", "UHF", "MP2", "SCS-MP2", "UMP2", "MP3", "UMP3", "SCS-MP3"]
     basis_options = ["STO-3G", "STO-6G", "3-21G", "4-31G", "6-31G", "6-31+G", "6-31++G", "6-311G", "6-311+G", "6-311++G", "HTO-CBS"]
 
     input_line = " ".join(sys.argv[1:]).upper().strip()
@@ -47,8 +48,12 @@ def parse_input():
 
 
     atoms = [atom.strip() for atom in geometry_section.split(" ")[0:2] if atom.strip()]
-
-    coordinates_1d = [0] + [float(bond_length.strip()) for bond_length in geometry_section.split(" ")[2:] if bond_length.strip()]
+    
+    try:
+    
+        coordinates_1d = [0] + [float(bond_length.strip()) for bond_length in geometry_section.split(" ")[2:] if bond_length.strip()]
+    
+    except ValueError: util.error("Could not parse bond length!")
     
     if calculation_type not in calculation_options: util.error(f"Calculation type \"{calculation_type}\" is not supported.")
     if method not in method_options: util.error(f"Calculation method \"{method}\" is not supported.")
@@ -59,6 +64,7 @@ def parse_input():
     if len(coordinates_1d) == 2 and coordinates_1d[1] < 0.05: util.error(f"Bond length ({coordinates_1d[1]} angstroms) too small! Minimum bond length is 0.05 angstroms.")
 
     coordinates = util.one_dimension_to_three(util.angstrom_to_bohr(np.array(coordinates_1d)))
+
 
     return calculation_type, method, basis, atoms, coordinates, params
 
@@ -145,6 +151,19 @@ if __name__ == "__main__": main()
 """
 TODO
 
-Take more energy points for numerical gradient and hessian, make less sensitive to SCF convergence
-Add back rotations, need 3D gradient or something: rotate 3D vector to lie in z axis, then calculate x, then rotate back, then update
+Harmonic frequency intensity, dipole derivatives
+Add comments and docstrings
+Redo logging
+Add MOREAD to MD
+Add anharmonic frequencies
+Change rotation in MD, use unitary force vector instead by coords[1] - coords[0] / norm, then multiply by magnitude
+Add CCSD
+Copy QChem Mulliken formulas
+Confirm energy components always work
+Capitalise Xh Xhe
+Look into DIIS for UHF with rotate, compare to ORCA
+Harpy 1rdm for (oo)UMP2
+Copy HarPy integrals
+Just transform the non antisymmetrised integrals, then do SCS, and antisymmetrise after
+Investigate whether the rotation angle should be 45 or 90 or what
 """

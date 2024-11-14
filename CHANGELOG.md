@@ -1,5 +1,35 @@
 # Changelog
 
+## TUNA 0.5.1  —  14/11/2024
+
+### Added
+
+- Keyword for the default Hessian used in geometry optimisations, `DEFAULTHESS`
+- Keyword for the maximum step size for geometry optimisations, `MAXSTEP`
+- Optional parameter can be used with the `LEVELSHIFT` keyword to adjust the degree of level shift
+
+### Changed
+
+- Improved logging to console for a more consistent user experience
+- Molecular dynamics simulations now read in the density matrix from the previous step by default
+- Refactored and optimised all the code, ready for future updates and added comments and docstrings
+- Separated two- and three-dimensional plotting functions into new tuna_plot module
+- Keyword for the angle with which to rotate orbitals for initial guess, `THETA` has been removed and replaced by `ROTATE [ANGLE]`
+- Reading in orbitals from previous coordinate scan step now turned off by default for UHF calculations
+
+### Fixed
+
+- Point group and molecular structure are now detected correctly for ghost atom calculations
+- Nuclear repulsion energy is now not calculated for ghost atoms
+- Individual energy components now work correctly for UHF energies
+- Removed Koopmans' theorem parameter calculations for UHF references
+- Molecular orbital eigenvalues and coefficients are now printed correctly for UHF, split into alpha and beta orbitals
+- Stopped reading in orbitals for one-electron systems in coordinate scans, as there is no SCF cycle
+- Orbitals are now rotated correctly by the requested angle for UHF initial guesses
+- DIIS for UHF now works as intended when the equations can't be solved
+
+<br>
+
 ## TUNA 0.5.0  —  21/09/2024
 
 ### Added

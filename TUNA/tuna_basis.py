@@ -1,8 +1,16 @@
 import sys
 import numpy as np
-import tuna_util as util
+from tuna_util import *
 
 class primitive_gaussian():
+
+    """
+    
+    Defines a primitive Gaussian, based on its contraction coefficient, exponent (alpha) and coordinates. 
+    
+    Determines the normalisation constant (N) based on these parameters.
+    
+    """
 
     def __init__(self, alpha, coeff, coordinates):
         
@@ -13,6 +21,18 @@ class primitive_gaussian():
 
 
 def generate_atomic_orbitals(atom_type, basis, location):
+
+    """
+
+    Requires the atom type (string), basis set (string) and coordinates of the atom (array). 
+
+    Standardises the name of the basis set by replacing user inputted hyphens with underscores, and plusses with "_plus". Then, uses
+    this to call the name of the function in this module that matches the requested basis set, which will generate the relevant atomic
+    orbitals.
+    
+    Returns the atomic orbitals (array).
+    
+    """
     
     basis = basis.replace("-", "_")
     basis = basis.replace("+", "_plus")
@@ -216,7 +236,7 @@ def generate_6_311_plus_plusg_orbitals(atom,location):
         primitive_gaussian(5.094790, 0.190373, location), 
         primitive_gaussian(1.158790, 0.852161, location)],[primitive_gaussian(0.325840, 1.000000, location)],[primitive_gaussian(0.102741, 1.000000, location)],[primitive_gaussian(0.036, 1.000000, location)]]
     
-    if atom == "HE" or atom == "XHE": util.error("The 6-311++G is not parameterised for He. Choose another basis set!")
+    if atom == "HE" or atom == "XHE": error("The 6-311++G is not parameterised for He. Choose another basis set!")
     
     return orbitals
     

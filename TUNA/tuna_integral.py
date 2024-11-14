@@ -1,13 +1,36 @@
 import numpy as np
 from scipy.special import erf
 
-def special_function(x): return np.where(x == 0, 1, (0.5 * (np.pi / (x + 1e-17)) ** 0.5) * erf((x + 1e-17) ** 0.5))
+def special_function(x): 
+    
+    """
+    
+    Requires an array.
+
+    Returns the Boys function of the array, where singularities are avoided by adding very small numbers.
+    
+    """
+
+    return np.where(x == 0, 1, (0.5 * (np.pi / (x + 1e-17)) ** 0.5) * erf((x + 1e-17) ** 0.5))
 
 
-def evaluate_integrals(orbitals, Z_list, atomic_coords, centre_of_mass, two_electron_ints=True):
+def evaluate_integrals(orbitals, charges, atomic_coords, centre_of_mass, two_electron_ints=True):
+
+    """
+    
+    Requires orbitals (array), nuclear charges (list), atomic coordinates (array), centre of mass (float), and whether two electron 
+    integrals are to be calculated (bool).
+
+    Calculates one-electron integrals, and two-electron integrals if these are requested. Makes full use of permutational symmetry
+    to speed up calculation of two-electron integrals.
+
+    Returns overlap integrals, kinetic integrals, nuclear-electron attraction integrals, dipole integrals and two-electron integrals.
+ 
+    """
 
     nbasis = len(orbitals)
 
+    #Initialises the integral arrays
     S = np.zeros([nbasis, nbasis])
     T = np.zeros([nbasis, nbasis])
     V_NE = np.zeros([nbasis, nbasis])
@@ -45,16 +68,18 @@ def evaluate_integrals(orbitals, Z_list, atomic_coords, centre_of_mass, two_elec
             Rk = np.einsum("ijk,ij->ij",(alpha_m_R_m[:, np.newaxis] + alpha_n_R_n), 1 / sum_mn)
             Rk_dipole = np.einsum("ijk,ij->ij", alpha_m_R_m_com[:, np.newaxis] + alpha_n_R_n_com, 1 / sum_mn)
 
+            #Adds onto the integral arrays using tensor contraction
             S[i,j] = np.einsum("mn->", OM_mn)
             T[i,j] = np.einsum("mn,mn,mn->", OM_mn, (product_mn / sum_mn), (3 - (2 * product_mn * R_mn**2) / sum_mn))
             D[i,j] += np.einsum("mn,mn->", OM_mn, Rk_dipole)
 
-            for atom in range(len(Z_list)):
+            for atom in range(len(charges)):
 
                 dfunc_to_atom_mn = (Rk - atomic_coords[atom][2]) ** 2
 
-                V_NE[i,j] += -Z_list[atom] * np.einsum("mn,mn,mn->",OM_mn,special_function(sum_mn * dfunc_to_atom_mn), 2 * np.sqrt(sum_mn / np.pi))
+                V_NE[i,j] += -charges[atom] * np.einsum("mn,mn,mn->",OM_mn,special_function(sum_mn * dfunc_to_atom_mn), 2 * np.sqrt(sum_mn / np.pi))
             
+            #Uses symmetry to speed up calculations
             S[j,i] = S[i,j]
             D[j,i] = D[i,j]
             T[j,i] = T[i,j]
@@ -95,7 +120,8 @@ def evaluate_integrals(orbitals, Z_list, atomic_coords, centre_of_mass, two_elec
 
                         V_EE[i,j,k,l] = 2 / np.sqrt(np.pi) * np.einsum("mnop,mnop,mn,op->",np.sqrt(prod_over_sum), special_function(input_function), OM_mn, OM_op)
                     
-                    
+                        #Uses permutational symmetry to save computational time
+
                         V_EE[j, i, l, k] = V_EE[i,j,k,l]
                         V_EE[j, i, k, l] = V_EE[i,j,k,l]
                         V_EE[i, j, l, k] = V_EE[i,j,k,l]
@@ -106,6 +132,7 @@ def evaluate_integrals(orbitals, Z_list, atomic_coords, centre_of_mass, two_elec
 
 
     return S, T, V_NE, D, V_EE
+
 
 
 def dipoe(orbitals, centre_of_mass):

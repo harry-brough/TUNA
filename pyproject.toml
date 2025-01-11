@@ -36,4 +36,4 @@ packages = ["TUNA"]
 path = "TUNA/__init__.py"
 
 [project.urls]
-Repository = "https://github.com/harrybrough1/TUNA"
+Repository = "https://github.com/harry-brough/TUNA"

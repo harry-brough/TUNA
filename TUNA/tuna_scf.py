@@ -2,252 +2,303 @@ import numpy as np
 from tuna_util import *
 
 
-def format_output_line(E, delta_E, maxDP, rmsDP, damping_factor, step, orbital_gradient, calculation):
-
-    """
-    
-    Requires energy (float), change in energy (energy), maximum change in the density matrix (float), root-mean-square change in the density matrix (float),
-    damping factor (float), step number (int), orbital gradient (float) and calculation (Calculation).
-
-    Formats everything nicely and prints to the output line to make sure decimal points all stay aligned properly.
+def format_output_line(E, delta_E, max_DP, RMS_DP, damping_factor, step, orbital_gradient, calculation, silent=False):
 
     """
 
-    delta_E_f = f"{delta_E:.10f}"
-    if E >= 0: energy_f = " " + f"{E:.10f}"
-    else: energy_f = f"{E:.10f}"
+    Formats and logs SCF details.
+
+    Args:
+        E (float): Energy
+        DE (float): Energy change
+        maxDP (float): Maximum change in density matrix
+        rmsDP (float): Root-mean-square change in density matrix
+        damping_factor (float): Damping factor
+        step (int): Iteration of SCF
+        orbital_gradient (float): Root-mean-square orbital gradient
+        calculation (Calculation): Calculation object
+        silent (bool, optional): Not silent by default
+
+    Returns:
+        None: This function logs output but does not return a value.
+
+    """
     
-    if abs(delta_E) >= 10: delta_E_f = ""+ f"{delta_E:.10f}"
-    if delta_E >= 0: delta_E_f = "  "+ f"{delta_E:.10f}"
-    elif abs(delta_E) >= 0: delta_E_f = " "+ f"{delta_E:.10f}"    
-    else: delta_E_f = f"{delta_E:.10f}"
-    
-    if abs(maxDP) >= 1000: maxDP_f = f"{maxDP:.10f}"
-    elif abs(maxDP) >= 100: maxDP_f = " " + f"{maxDP:.10f}"
-    elif abs(maxDP) >= 10: maxDP_f = "  " + f"{maxDP:.10f}"
-    else: maxDP_f = "   "+f"{maxDP:.10f}"
-    
-    if abs(rmsDP) >= 1000: rmsDP_f = f"{rmsDP:.10f}"
-    elif abs(rmsDP) >= 100: rmsDP_f = " "+f"{rmsDP:.10f}"
-    elif abs(rmsDP) >= 10: rmsDP_f = "  "+ f"{rmsDP:.10f}"
-    else: rmsDP_f = "   " +f"{rmsDP:.10f}"
-    
-    
-    damping_factor_f = f"{damping_factor:.3f}"
-    if damping_factor == 0: damping_factor_f = " ---"
-    
-    if step < 10: step_f = str(step) + " "
-    else: step_f = str(step)
-    if step != 1: log("", calculation, 1)
+    damping_factor = f"{damping_factor:.3f}" if damping_factor != 0 else " ---"
+
+    log(f" {step:3.0f}     {E:13.10f}     {delta_E:13.10f}     {RMS_DP:13.10f}     {max_DP:13.10f}     {orbital_gradient:13.10f}    {damping_factor}", calculation, 1, silent=silent)   
 
 
-    log(f"   {step_f}     {energy_f}     {delta_E_f}  {rmsDP_f}  {maxDP_f}     {orbital_gradient:.10f}     {damping_factor_f}", calculation, 1, end="")   
 
 
 
 def construct_density_matrix(molecular_orbitals, n_occ, n_electrons_per_orbital):
 
     """
-    
-    Requires molecular orbitals (array), number of occupied orbitals (int), and number of electrons per orbital (int).
 
-    The prefactor indicates whether the calculation is RHF and UHF, so either two or one electrons per orbital. Builds the 
-    density from these and molecular orbitals by tensor contraction.
+    Slices out occupied molecular orbitals to build one-particle reduced density matrix.
 
-    Returns the one particle reduced density matrix (array).
-    
+    Args:
+        molecular_orbitals (array): Molecular orbitals in AO basis
+        n_occ (int): Number of occupied molecular orbitals
+        n_electrons_per_orbital (int): Number of electrons per orbital (RHF or UHF)
+
+    Returns:
+        P (array): One-particle reduced density matrix in AO basis
+
     """
 
-    P = n_electrons_per_orbital * np.einsum('io,jo->ij', molecular_orbitals[:, :n_occ], molecular_orbitals[:, :n_occ], optimize=True)
+    occupied_mos = molecular_orbitals[:, :n_occ]
+    P = n_electrons_per_orbital * occupied_mos @ occupied_mos.T
 
     return P
     
 
 
+
+
 def diagonalise_Fock_matrix(F, X):
 
     """
-    
-    Requires Fock matrix (array) and Fock transformation matrix (array).
 
-    Transforms Fock matrix into orthonormal basis to calculate molecular orbitals and orbital eigenvalues.
+    Transforms and diagonalises Fock matrix for molecular orbitals and orbital energies.
 
-    Returns epsilons (array) and molecular orbitals (array).
-    
+    Args:
+        F (array): Fock matrix in AO basis
+        X (array): Fock transformation matrix
+
+    Returns:
+        epsilons (array): Fock matrix eigenvalues, orbital energies
+        molecular_orbitals (array): Molecular orbitals in AO basis
+
     """
 
     F_orthonormal = X.T @ F @ X
+    
     epsilons, eigenvectors = np.linalg.eigh(F_orthonormal)
+
+    # Transforms molecular orbitals back to non-orthogonal AO basis
     molecular_orbitals = X @ eigenvectors
 
     return epsilons, molecular_orbitals
 
 
 
-def calculate_RHF_electronic_energy(P, H_Core, G):
 
-    """
-    
-    Requires the density matrix (array), core Hamiltonian matrix (array) and two-electron part of Fock matrix (array).
 
-    Calculates and returns the electronic energy (float) from optimised tensor contraction of density matrix and Fock matrix.
+def calculate_RHF_electronic_energy(P, H_core, G):
 
     """
 
-    electronic_energy = np.einsum('ij,ij->', 0.5 * P, H_Core + G, optimize=True)
+    Forms Fock matrix and calculates RHF electronic energy.
+
+    Args:
+        P (array): Density matrix in AO basis
+        H_core (array): Core Hamiltonian matrix in AO basis
+        G (array): Two-electron part of Fock matrix
+
+    Returns:
+        electronic_energy (float): Electronic energy
+
+    """
+
+    F = H_core + G
+
+    electronic_energy = calculate_one_electron_property(0.5 * P, F)
     
     return electronic_energy
+
+
 
 
 
 def calculate_UHF_electronic_energy(P_alpha, P_beta, H_Core, F_alpha, F_beta):
 
     """
-    
-    Requires the alpha and beta density matrices (arrays), core Hamiltonian matrix (array) and alpha and beta Fock matrices (arrays).
 
-    Calculates and returns the electronic energy (float) from optimised tensor contraction of density matrices and Fock matrices.
+    Calculates UHF electronic energy.
+
+    Args:
+        P_alpha (array): Density matrix for alpha orbitals in AO basis
+        P_beta (array): Density matrix for beta orbitals in AO basis
+        H_core (array): Core Hamiltonian matrix in AO basis
+        F_alpha (array): Fock matrix for alpha orbitals in AO basis
+        F_beta (array): Fock matrix for beta orbitals in AO basis
+
+    Returns:
+        electronic_energy (float): Electronic energy
 
     """
 
-    electronic_energy = 0.5 * (np.einsum('ij,ij->', (P_alpha + P_beta), H_Core, optimize=True) + np.einsum('ij,ij->', P_alpha, F_alpha, optimize=True) + np.einsum('ij,ij->', P_beta, F_beta, optimize=True))
+    electronic_energy = 0.5 * (calculate_one_electron_property(P_alpha + P_beta, H_Core) + calculate_one_electron_property(P_alpha, F_alpha) + calculate_one_electron_property(P_beta, F_beta))
     
     return electronic_energy
 
 
 
 
-def calculate_UHF_energy_components(P_alpha, P_beta, T, V_NE, J_alpha, J_beta, K_alpha, K_beta):
-    
-    """
-    
-    Requires alpha and beta density matrices (arrays), kinetic matrix (array), nuclear-electron potential energy matrix (array),
-    alpha and beta Coulomb and exchange matrices (arrays).
-    
-    Calculates various energy components through optimised tensor contractions.
-    
-    Returns kinetic energy (float), nuclear-electron energy (float), Coulomb energy (float) and exchange energy (float).
+
+def calculate_energy_components(P_alpha, P_beta, T, V_NE, J_alpha, J_beta, K_alpha, K_beta, P, J, K, reference):
     
     """
 
-    kinetic_energy = np.einsum('ij,ij->', P_alpha + P_beta, T, optimize=True)
-    nuclear_electron_energy = np.einsum('ij,ij->', P_alpha + P_beta, V_NE, optimize=True)
-    coulomb_energy = 0.5 * np.einsum('ij,ij->', P_alpha + P_beta, J_alpha + J_beta, optimize=True) 
-    exchange_energy = -0.5 * np.einsum('ij,ij->', P_alpha, K_alpha, optimize=True) - 0.5 * np.einsum('ij,ij->', P_beta, K_beta, optimize=True)
+    Calculates UHF electronic energy components.
+
+    Args:
+        P_alpha (array): Density matrix for alpha orbitals in AO basis
+        P_beta (array): Density matrix for beta orbitals in AO basis
+        T (array): Kinetic energy matrix in AO basis
+        V_NE (array): Nuclear-electron attraction matrix in AO basis
+        J_alpha (array): Coulomb matrix for alpha orbitals in AO basis
+        J_beta (array): Coulomb matrix for beta orbitals in AO basis
+        K_alpha (array): Exchange matrix for alpha orbitals in AO basis
+        K_beta (array): Exchange matrix for beta orbitals in AO basis
+        P (array): Density matrix in AO basis
+        J (array): Coulomb matrix in AO basis
+        K (array): Exchange matrix in AO basis
+        reference (string): Either UHF or RHF
+
+    Returns:
+        kinetic_energy (float): Kinetic energy
+        nuclear_electron_energy (float): Nuclear-electron energy
+        coulomb_energy (float): Coulomb energy
+        exchange_energy (float): Exchange energy
+
+    """
+
+    kinetic_energy = calculate_one_electron_property(P, T)
+    nuclear_electron_energy = calculate_one_electron_property(P, V_NE)
+
+    if reference == "RHF":
+            
+        coulomb_energy = 0.5 * calculate_one_electron_property(P, J)
+        exchange_energy = -0.5 * calculate_one_electron_property(P, K / 2)
+
+    elif reference == "UHF":
+
+        coulomb_energy = 0.5 * calculate_one_electron_property(P, J_alpha + J_beta)
+        exchange_energy = -0.5 * calculate_one_electron_property(P_alpha, K_alpha) - 0.5 * calculate_one_electron_property(P_beta, K_beta)
 
     return kinetic_energy, nuclear_electron_energy, coulomb_energy, exchange_energy
 
 
 
-def calculate_RHF_energy_components(P, T, V_NE, J, K):
-    
-    """
-    
-    Requires density matrix (array), kinetic matrix (array), nuclear-electron potential energy matrix (array), Coulomb and exchange matrices (arrays).
-    
-    Calculates various energy components through optimised tensor contractions.
-    
-    Returns kinetic energy (float), nuclear-electron energy (float), Coulomb energy (float) and exchange energy (float).
-    
-    """
-
-    kinetic_energy = np.einsum('ij,ij->', P, T, optimize=True)
-    nuclear_electron_energy = np.einsum('ij,ij->', P, V_NE, optimize=True)
-    coulomb_energy = 0.5 * np.einsum('ij,ij->', P, J, optimize=True)
-    exchange_energy = -0.5 * np.einsum('ij,ij->', P, K / 2, optimize=True)
-
-    return kinetic_energy, nuclear_electron_energy, coulomb_energy, exchange_energy
-    
 
 
 def calculate_SCF_changes(E, E_old, P, P_old):
 
     """
-    
-    Requires energy (float), old energy (float), new and old density matrices (array).
 
-    Calculates the maximum and root-mean-square change in the density matrix, from the old one, and the change in the energy.
+    Calculates changes to energy and density matrix.
 
-    Returns change in energy (float), maximum change in the density matrix (float) and root-mean-square change in the density matrix (array).
-    
+    Args:
+        E (float): Energy
+        E_old (float): Energy of last iteration
+        P (array): Density matrix in AO basis
+        P_old (array): Density matrix in AO basis of last iteration
+
+    Returns:
+        delta_E (float): Change in energy
+        maxDP (float): Maximum absolute change in the density matrix
+        rmsDP (float): Root-mean-square change in the density matrix
+
     """
 
     delta_E = E - E_old
     delta_P = P - P_old
     
-    #Maximum and root-mean-square change in density matrix
-    maxDP = np.max(delta_P)
-    rmsDP = np.sqrt(np.mean(delta_P ** 2))
+    max_DP = np.max(np.abs(delta_P))
+    RMS_DP = np.sqrt(np.mean(delta_P ** 2))
 
-    return delta_E, maxDP, rmsDP
-
+    return delta_E, max_DP, RMS_DP
 
 
-def construct_RHF_Fock_matrix(H_Core, V_EE, P):
+
+
+
+def construct_RHF_Fock_matrix(H_core, ERI_AO, P):
 
     """
-    
-    Requires core Hamiltonian matrix (array), two-electron integral matrix (array) and density matrix (array).
 
-    Calculates the two-electron contributions (Coulomb and exchange matrices) by tensor contraction.
+    Constructs RHF Fock matrix from density matrix and two-electron integrals.
 
-    Returns Fock matrix, Coulomb matrix and exchange matrix (arrays).
-    
+    Args:
+        H_core (array): Core Hamiltonian matrix in AO basis
+        ERI_AO (array): Electron repulsion integrals in AO basis
+        P (array): Density matrix in AO basis
+
+    Returns:
+        F (array): RHF Fock matrix in AO basis
+        J (array): Coulomb matrix in AO basis
+        K (array): Exchange matrix in AO basis
+
     """
 
-    #Forms two-electron contributions by tensor contraction of two-electron integrals with density matrix
-    J = np.einsum('ijkl,kl->ij', V_EE, P, optimize=True)
-    K = np.einsum('ilkj,kl->ij', V_EE, P, optimize=True)
+    J = np.einsum('ijkl,kl->ij', ERI_AO, P, optimize=True)
+    K = np.einsum('ilkj,kl->ij', ERI_AO, P, optimize=True)
 
-    #Two-electron part of Fock matrix   
+    # Two-electron part of Fock matrix   
     G = J - 0.5 * K
     
-    F = H_Core + G
+    F = H_core + G
     
     return F, J, K
     
 
 
 
-def construct_UHF_Fock_matrix(H_Core, V_EE, P_alpha, P_beta):
+def construct_UHF_Fock_matrices(H_core, ERI_AO, P_alpha, P_beta):
 
     """
-    
-    Requires core Hamiltonian matrix (array), two-electron integral matrix (array) and alpha and beta density matrices (array).
 
-    Calculates the two-electron contributions (Coulomb and exchange matrices) for both alpha and beta electrons by tensor contraction.
+    Constructs UHF Fock matrix from density matrices and two-electron integrals.
 
-    Returns Fock matrices, Coulomb matrices and exchange matrices (arrays).
-    
+    Args:
+        H_core (array): Core Hamiltonian matrix in AO basis
+        ERI_AO (array): Electron repulsion integrals in AO basis
+        P_alpha (array): Density matrix for alpha orbitals in AO basis
+        P_beta (array): Density matrix for beta orbitals in AO basis
+
+    Returns:
+        F_alpha (array): RHF Fock matrix for alpha orbitals in AO basis
+        F_beta (array): RHF Fock matrix for beta orbitals in AO basis
+        J_alpha (array): Coulomb matrix for alpha orbitals in AO basis
+        J_beta (array): Coulomb matrix for beta orbitals in AO basis
+        K_alpha (array): Exchange matrix for alpha orbitals in AO basis
+        K_beta (array): Exchange matrix for beta orbitals in AO basis
+
     """
 
-    J_alpha = np.einsum('ijkl,kl->ij', V_EE, P_alpha, optimize=True)
-    J_beta = np.einsum('ijkl,kl->ij', V_EE, P_beta, optimize=True)
+    J_alpha = np.einsum('ijkl,kl->ij', ERI_AO, P_alpha, optimize=True)
+    J_beta = np.einsum('ijkl,kl->ij', ERI_AO, P_beta, optimize=True)
 
-    K_alpha = np.einsum('ilkj,kl->ij', V_EE, P_alpha, optimize=True)
-    K_beta = np.einsum('ilkj,kl->ij', V_EE, P_beta, optimize=True)
+    K_alpha = np.einsum('ilkj,kl->ij', ERI_AO, P_alpha, optimize=True)
+    K_beta = np.einsum('ilkj,kl->ij', ERI_AO, P_beta, optimize=True)
 
-    #Builds separate Fock matrices for alpha and beta spins
-    F_alpha = H_Core + (J_alpha + J_beta) - K_alpha
-    F_beta = H_Core + (J_alpha + J_beta) - K_beta
-
+    # Builds separate Fock matrices for alpha and beta spins
+    F_alpha = H_core + (J_alpha + J_beta) - K_alpha
+    F_beta = H_core + (J_alpha + J_beta) - K_beta
 
     return F_alpha, F_beta, J_alpha, J_beta, K_alpha, K_beta
     
     
 
 
-def damping(P, P_old, orbital_gradient, calculation):
+def apply_damping(P, P_old, orbital_gradient, calculation):
 
     """
-    
-    Requires density matrix (array), old density matrix (array), orbital gradient (float), calculation (Calculation).
 
-    If damping has been requested, calculates a damping factor based on a homemade equation, and if SLOWCONV has been requested,
-    a high static damping factor is required. If VERYSLOWCONV is requested, a very high static damping factor is used. The new
-    density matrix is then damped by mixing with the old density matrix in this proportion.
+    Applys damping to density matrix based on calculation parameters.
 
-    Returns damped density matrix (array) and final damping factor (float).
+    Args:
+        P (array): Density matrix for in AO basis
+        P_old (array): Density matrix for in AO basis
+        orbital_gradient (float): Orbital gradient, measure of SCF error
+        calculation (Calculation): Calculation object
+
+    Returns:
+        P_damped (array): Damped density matrix
+        damping_factor (float): Proportion of old density matrix in new one
 
     """
     
@@ -255,13 +306,12 @@ def damping(P, P_old, orbital_gradient, calculation):
     
     if calculation.damping:
 
-        #Uses custom damping formula iff orbital gradient is high, otherwise allows DIIS to run 
         if orbital_gradient > 0.01: damping_factor = 0.7 * np.tanh(orbital_gradient)  
 
-        if calculation.slowconv: damping_factor = 0.5
-        elif calculation.veryslowconv: damping_factor = 0.85       
+        if calculation.slow_conv: damping_factor = 0.5
+        elif calculation.very_slow_conv: damping_factor = 0.85       
 
-    #Mixes old density with new, in proportion of damping factor
+    # Mixes old density with new, in proportion of damping factor
     P_damped = damping_factor * P_old + (1 - damping_factor) * P
     
 
@@ -270,363 +320,393 @@ def damping(P, P_old, orbital_gradient, calculation):
 
 
 
-def apply_level_shift(F, P, level_shift_parameter):
-
-    """
-    
-    Requires Fock matrix (array), density matrix (array) and level shift parameter (float).
-
-    The level shift is applied by multiplying the density matrix and subtracting from the Fock matrix.
-
-    Returns the level-shifted Fock matrix.
-    
-    """
-
-    F_levelshift = F - level_shift_parameter * P
-
-    return F_levelshift
-    
-
-
-def calculate_diis_error(F, P, S, X, Fock_vector, diis_error_vector):
-
-    """
-    
-    Requires Fock matrix (array), density matrix (array), overlap matrix (array) and Fock transformation matrix (array), and DIIS error vector (array).
-
-    Calculates the DIIS error, then orthogonalises this and calculates the root-mean-square error, which is called the orbital gradient. The Fock matrix
-    is then appended onto the Fock vector and the DIIS error is appended to the DIIS error vector.
-
-    Returns the orbital gradient (float), Fock vector (array) and DIIS error vector (array).
+def apply_level_shift(F, P, calculation):
 
     """
 
-    diis_error = np.einsum('ij,jk,kl->il', F, P, S, optimize=True) - np.einsum('ij,jk,kl->il', S, P, F, optimize=True)
-    orthogonalised_diis_error = X.T @ diis_error @ X
+    Applies level shift to Fock matrix.
 
-    #Orbital gradient is the root-mean-squared DIIS error
-    orbital_gradient = np.sqrt(np.mean(orthogonalised_diis_error ** 2))
+    Args:
+        F (array): Fock matrix in AO basis
+        P (array): Density matrix in AO basis
+        calculation (Calculation): Calculation object
 
-    #Updates vectors with Fock and error matrices
-    Fock_vector.append(F)
-    diis_error_vector.append(orthogonalised_diis_error)
-
-
-    return orbital_gradient, Fock_vector, diis_error_vector
-
-
-
-def update_diis(Fock_vector, error_vector, F, X, n_doubly_occ, n_electrons_per_orbital, calculation, silent=False):
+    Returns:
+        F_level_shifted (array): Level shifted Fock matrix in AO basis
 
     """
-    
-    Requires Fock vector and error vector (arrays), current Fock matrix (array), Fock transformation matrix (array), number of doubly occupied orbitals
-    (int), number of electrons per orbitals (int) and calculation (Calculation).
 
-    Builds the system of equations needed to solve the DIIS coefficients, then uses these to build a DIIS extrapolated Fock matrix, and diagonalises this
-    for molecular orbitals to build a new density matrix.
+    F_level_shifted = F - calculation.level_shift_parameter * P
 
-    If DIIS equations can be solved, returns the new density matrix (array), otherwise, returns 0 and outputs a warning, resetting DIIS and clearing the error vector.
+    return F_level_shifted
     
+
+
+
+def calculate_DIIS_error(F, P, S, X):
+
     """
 
-    dimension = len(Fock_vector) + 1
-    B = np.empty((dimension, dimension))
+    Calculates the DIIS error and the root-mean-square of the orbital gradient.
 
-    B[-1, :] = -1
-    B[:, -1] = -1
-    B[-1, -1] = 0
+    Args:
+        F (array): Fock matrix in AO basis
+        P (array): Density matrix in AO basis
+        S (array): Overlap matrix in AO basis
+        X (array): Fock transformation matrix in AO basis
 
-    #Builds B matrix involved in linear DIIS equations
-    for i in range(len(Fock_vector)):
-        for j in range(len(Fock_vector)):
+    Returns:
+        orthogonalised_DIIS_error (array): DIIS error matrix for this F and P
+        orbital_gradient (float): Root-mean-square of DIIS error
+    """
 
-            B[i,j] = np.einsum("ij,ij->", error_vector[i], error_vector[j], optimize=True)
+    # Orthogonalises DIIS error to remove issues from linear dependencies
+    DIIS_error = F @ P @ S - S @ P @ F
+    orthogonalised_DIIS_error = X.T @ DIIS_error @ X
+
+    orbital_gradient = np.sqrt(np.mean(orthogonalised_DIIS_error ** 2))
+
+    return orthogonalised_DIIS_error, orbital_gradient
 
 
-    right_hand_side = np.zeros((dimension))
-    right_hand_side[-1] = -1
 
 
-    try: 
+
+def update_DIIS(DIIS_error_vector, Fock_vector, n_alpha, n_beta, X, n_electrons_per_orbital, calculation, silent=False):
+    
+    """
+    Updates the Fock matrices using DIIS extrapolation.
+
+    Args:
+        DIIS_error_vector (array): List of DIIS error matrices
+        Fock_vector (array): List of tuples containing Fock matrices for alpha and beta spins
+        n_alpha (int): Number of alpha electrons
+        n_beta (int): Number of beta electrons
+        X (array): Fock transformation orthonormalising matrix in AO basis
+        n_electrons_per_orbital (int): Number of electrons per orbital
+        calculation (Calculation): Calculation object
+        silent (bool, optional): Not silent by default
+
+    Returns:
+        - P_alpha (array): Updated alpha density matrix
+        - P_beta (array): Updated beta density matrix
+        - Fock_vector (array): Updated Fock vector
+        - DIIS_error_vector (array): Updated DIIS error vectors
+    """
+
+    n_DIIS = len(DIIS_error_vector)
+    
+    # Convert list of DIIS error vectors to a 2D NumPy array for efficient computation
+    DIIS_errors = np.array(DIIS_error_vector) 
+
+    # Build the B matrix 
+    B = np.empty((n_DIIS + 1, n_DIIS + 1))
+    B[:n_DIIS, :n_DIIS] = DIIS_errors @ DIIS_errors.T 
+    B[:n_DIIS, -1] = -1
+    B[-1, :n_DIIS] = -1
+    B[-1, -1] = 0.0
+
+    # Right-hand side of the linear equations
+    rhs = np.zeros(n_DIIS + 1)
+    rhs[-1] = -1.0
+
+    try:
+
+        coeffs = np.linalg.solve(B, rhs)[:n_DIIS]  # Exclude the last coefficient which is for the constraint
+
+        # Convert Fock_vector to separate alpha and beta lists
+        F_alpha_list = np.array([fock[0] for fock in Fock_vector]) 
+        F_beta_list = np.array([fock[1] for fock in Fock_vector]) 
+
+        # Extrapolate Fock matrices for both alpha and beta spins using matrix multiplication
+        F_alpha_DIIS = np.tensordot(coeffs, F_alpha_list, axes=(0, 0))
+        F_beta_DIIS = np.tensordot(coeffs, F_beta_list, axes=(0, 0))
+
+        # Diagonalize the extrapolated Fock matrices
+        _, molecular_orbitals_alpha_DIIS = diagonalise_Fock_matrix(F_alpha_DIIS, X)
+        _, molecular_orbitals_beta_DIIS = diagonalise_Fock_matrix(F_beta_DIIS, X)
+
+        # Construct new density matrices
+        P_alpha = construct_density_matrix(molecular_orbitals_alpha_DIIS, n_alpha, n_electrons_per_orbital)
+        P_beta = construct_density_matrix(molecular_orbitals_beta_DIIS, n_beta, n_electrons_per_orbital)
+
+    except np.linalg.LinAlgError:
         
-        #Solves system of linear equations for DIIS coefficients
-        coeff = np.linalg.solve(B, right_hand_side)
+        # Reset DIIS if equations cannot be solved
+        Fock_vector.clear()
+        DIIS_error_vector.clear()
 
-        F_diis = np.zeros_like(F)
+        P_alpha = None
+        P_beta = None
 
-        #Builds extrapolated Fock matrix using the calculated DIIS coefficients
-        for k in range(coeff.shape[0] - 1): F_diis += coeff[k] * Fock_vector[k]
+        log("   (Resetting DIIS)", calculation, 1, end="", silent=silent)
 
-        #Diagonalises extrapolated Fock matrix for molecular orbitals, then uses these to build the new density matrix
-        F_orthonormal_diis = X.T @ F_diis @ X
-        molecular_orbitals_diis = X @ np.linalg.eigh(F_orthonormal_diis)[1]
-
-        P = construct_density_matrix(molecular_orbitals_diis, n_doubly_occ, n_electrons_per_orbital)
-
-        return P
-
-    except np.linalg.LinAlgError: 
-
-        #If system of equations can't be solved, reset DIIS with this warning
-        if not silent: log("   (Resetting DIIS)", calculation, 1, end="")
-
-    return 0
-
-
-
-def check_convergence(scf_conv, step, delta_E, maxDP, rmsDP, orbital_gradient, calculation, silent=False):
-
-    """
-    
-    Requires SCF convergence criteria (dict), step (int), change in energy (float), maximum change in the density matrix (float), root-mean-square change in the density
-    matrix (float), orbital gradient (float), and calculation (Calculation).
-    
-    Checks convergence of various quantities against criteria, returns True if converged and prints out positive message, or False if not yet converged.
-
-    """
-    
-    #Checks various quantities against convergence criteria
-    if np.abs(delta_E) < scf_conv.get("delta_E") and np.abs(maxDP) < scf_conv.get("maxDP") and np.abs(rmsDP) < scf_conv.get("rmsDP") and np.abs(orbital_gradient) < scf_conv.get("orbitalGrad"): 
-
-        if not silent:
-
-            log("\n ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 1)
-            log(f"\n Self-consistent field converged in {step} cycles!\n", calculation, 1)
-
-        return True    
-
-    return False   
+    return P_alpha, P_beta, Fock_vector, DIIS_error_vector
 
 
 
 
-def SCF(molecule, calculation, T, V_NE, V_EE, V_NN, S, X, E_guess, P=None, P_alpha=None, P_beta=None, silent=False):
-
-    """
-    
-    Requires molecule (Molecule), calculation (Calculation), kinetic energy matrix (array), nuclear-electron attraction matrix (array), electron-electron
-    repulsion matrix (array), nuclear-nuclear repulsion energy (float), overlap matrix (array), Fock transformation matrix (array) and energy guess (float).
-    Optional parameters are guess density matrices (array) and whether any information should print to the console.    
-    
-    Runs the SCF loop, which depends on whether the reference is RHF or UHF. Constructs the Fock matrix, diagonalises the Fock matrix, builds the density
-    matrix then checks for convergence. This process then interates until convergence is achieved. Various convergence acceleration methods are optionally
-    included, such as level shift, damping and DIIS. In the end, packages all the useful information from the converged SCF cycle into an Output object.
-
-    Returns the SCF output (Output), kinetic energy (float), nuclear-electron energy (float), Coulomb energy (float) and exchange energy (float).
+def check_convergence(scf_conv_params, step, delta_E, max_DP, RMS_DP, orbital_gradient, calculation, silent=False):
 
     """
 
-    if not silent:
+    Checks the convergence of the SCF loop.
 
-        log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 1)
-        log("                                            SCF Cycle Iterations", calculation, 1)
-        log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 1)
-        log("  Step          E                  DE             RMS(DP)          MAX(DP)          [F,PS]       Damping", calculation, 1)
-        log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 1)
+    Args:
+        scf_conv (dict): Dictionary of SCF convergence thresholds
+        step (int): Iteration of SCF
+        delta_E (float): Change in energy since last step
+        max_DP (float): Maximum change in density matrix
+        RMS_DP (float): Root-mean-square change in density matrix
+        orbital_gradient (float): Orbital gradient
+        calculation (Calculation): Calculation object
+        silent (bool, optional): Not silent by default
+
+    Returns:
+        converged (bool): Checks if the calculation has converged or not
+
+    """
+    
+    converged = False
+
+    if abs(delta_E) < scf_conv_params["delta_E"] and abs(max_DP) < scf_conv_params["max_DP"] and abs(RMS_DP) < scf_conv_params["RMS_DP"] and abs(orbital_gradient) < scf_conv_params["orbital_gradient"]: 
+
+        log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 1, silent=silent)
+        log(f"\n Self-consistent field converged in {step} cycles!\n", calculation, 1, silent=silent)
+
+        converged = True
+
+    return converged   
 
 
-    #Build core Hamiltonian and initial Fock matrix
-    H_Core = T + V_NE
-    F = H_Core
 
-    #Sets initial parameters
-    electronic_energy = E_guess
-    orbital_gradient = 1
-    level_shift_off = False
 
-    #Unpacks useful calculation properties
-    level_shift_parameter = calculation.level_shift_parameter
+def run_SCF(molecule, calculation, T, V_NE, ERI_AO, V_NN, S, X, E, P=None, P_alpha=None, P_beta=None, silent=False):
+
+    """
+
+    Runs the Hartree-Fock self-consistent field loop until convergence.
+
+    Args:
+        molecule (Molecule): Molecule object
+        calculation (Calculation): Calculation object
+        T (array): Kinetic energy matrix in AO basis
+        V_NE (array): Nuclear-electron attraction matrix in AO basis
+        ERI_AO (array): Electron repulsion integrals in AO basis
+        S (array): Overlap matrix in AO basis
+        X (array): Fock transformation matrix in AO basis
+        E (float): Guess energy
+        P (array, optional): Guess density matrix in AO basis
+        P_alpha (array, optional): Guess density matrix for alpha orbitals in AO basis
+        P_beta (array, optional): Guess density matrix for beta orbitals in AO basis
+        silent (bool, optional): Not silent by default
+
+    Returns:
+        scf_output (Output): Output object containing all SCF results
+
+    Notes:
+        - Either runs the RHF or UHF SCF loop
+        - Throws an error if the SCF cycle does not converge in the maximum number of iterations
+
+    """
+
+    log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 1, silent=silent)
+    log("                                            SCF Cycle Iterations", calculation, 1, silent=silent, colour="white")
+    log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 1, silent=silent)
+    log("  Step         E                 DE              RMS(DP)          MAX(DP)            [F,PS]      Damping", calculation, 1, silent=silent)
+    log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 1, silent=silent)
+
+
+    # Build core Hamiltonian and initial guess Fock matrix
+    H_core = T + V_NE
+    F = H_core
+
+    # Unpacks useful calculation properties
     reference = calculation.reference
     maximum_iterations = calculation.max_iter
-    level_shift = calculation.level_shift
-    diis = calculation.diis
-    scf_conv = calculation.scf_conv
     n_electrons_per_orbital = calculation.n_electrons_per_orbital
+    level_shift_removed = False
 
-    #Unpacks useful molecular quantities
+    # Unpacks useful molecular quantities
     n_doubly_occ = molecule.n_doubly_occ
     n_alpha = molecule.n_alpha
     n_beta = molecule.n_beta
 
+    orbital_gradient = 1
 
     if reference == "RHF":
 
-        #Initialises vectors for DIIS
+        # Initialises vectors for DIIS
         Fock_vector = []
-        diis_error_vector = []
+        DIIS_error_vector = []
 
         for step in range(1, maximum_iterations):
             
-            #Sets previous values to current value to initialise loop for comparison later
-            electronic_energy_old = electronic_energy
+            E_old = E
             P_old = P 
       
-            #Constructs Fock matrix
-            F, J, K = construct_RHF_Fock_matrix(H_Core, V_EE, P)
+            # Constructs Fock matrix
+            F, J, K = construct_RHF_Fock_matrix(H_core, ERI_AO, P)
 
-            #Calculates DIIS error
-            orbital_gradient, Fock_vector, diis_error_vector = calculate_diis_error(F, P, S, X, Fock_vector, diis_error_vector)
+            # Applies level shift
+            if calculation.level_shift and not level_shift_removed:
 
-            #Diagonalises Fock matrix
+                F = apply_level_shift(F, P, calculation)
+
+                if orbital_gradient < 0.02:
+
+                    level_shift_removed = True
+                    log("   (Level Shift Off)", calculation, 1, end="", silent=silent)
+
+
+            # Calculate DIIS error and append to error vector
+            orthogonalised_DIIS_error, orbital_gradient = calculate_DIIS_error(F, P, S, X)
+
+            e_combined = np.concatenate((orthogonalised_DIIS_error.flatten(), orthogonalised_DIIS_error.flatten()))
+            DIIS_error_vector.append(e_combined)
+
+            Fock_vector.append((F, F))
+            
+            # Diagonalises Fock matrix
             epsilons, molecular_orbitals = diagonalise_Fock_matrix(F, X)
             
-            #Constructs density matrix
+            # Constructs density matrix
             P = construct_density_matrix(molecular_orbitals, n_doubly_occ, n_electrons_per_orbital)
 
-            #Calculates electronic energy
-            electronic_energy = calculate_RHF_electronic_energy(P, H_Core, F)
+            # Calculates electronic energy
+            E = calculate_RHF_electronic_energy(P, H_core, F)
 
-            #Calculates the changes in energy and density
-            delta_E, maxDP, rmsDP = calculate_SCF_changes(electronic_energy, electronic_energy_old, P, P_old)
+            # Calculates the changes in energy and density
+            delta_E, maxDP, rmsDP = calculate_SCF_changes(E, E_old, P, P_old)
 
-            #Applies level shift
-            if level_shift and not level_shift_off:
-
-                if orbital_gradient > 0.00001: F = apply_level_shift(F, P, level_shift_parameter)
-
-                else: 
-
-                    level_shift_off = True
-                    if not silent: log("    (Level Shift Off)", calculation, 1, end="")
-
-            #Clears old Fock matrices if Fock vector is too old
+            # Clears old Fock matrices if Fock vector is too old
             if len(Fock_vector) > 10: 
                 
                 del Fock_vector[0]
-                del diis_error_vector[0]
+                del DIIS_error_vector[0]
   
-            #Updates density matrix from DIIS extrapolated Fock matrix, applies it if the equations were solved successfully
-            if step > 2 and diis and orbital_gradient < 0.2 and orbital_gradient > 1e-5: 
+            # Updates density matrix from DIIS extrapolated Fock matrix, applies it if the equations were solved successfully
+            if step > 2 and calculation.DIIS and orbital_gradient < 0.2: 
                 
-                P_diis = update_diis(Fock_vector, diis_error_vector, F, X, n_doubly_occ, n_electrons_per_orbital, calculation, silent=silent)
-                if type(P_diis) != int: P = P_diis
-
-            #Damping factor is applied to the density matrix
-            P, damping_factor = damping(P, P_old, orbital_gradient, calculation)
-
-            #Energy is sum of electronic and nuclear energies
-            E = electronic_energy + V_NN  
-
-            #Data outputted to console
-            if not silent: format_output_line(E, delta_E, maxDP, rmsDP, damping_factor, step, orbital_gradient, calculation)
-
-            #Check for convergence of energy and density
-            if check_convergence(scf_conv, step, delta_E, maxDP, rmsDP, orbital_gradient, calculation, silent=silent): 
-
-                kinetic_energy, nuclear_electron_energy, coulomb_energy, exchange_energy = calculate_RHF_energy_components(P, T, V_NE, J, K)
-                  
-                molecular_orbitals_alpha = molecular_orbitals
-                molecular_orbitals_beta = molecular_orbitals
-
-                epsilons_alpha = epsilons
-                epsilons_beta = epsilons
-
-                P_alpha = P / 2
-                P_beta = P / 2
+                P_alpha_DIIS, P_beta_DIIS, Fock_vector, DIIS_error_vector = update_DIIS(DIIS_error_vector, Fock_vector, n_alpha, n_beta, X, n_electrons_per_orbital, calculation, silent=silent)
                 
-                #Builds SCF output object
-                scf_output = Output(E, S, P, P_alpha, P_beta, molecular_orbitals, molecular_orbitals_alpha, molecular_orbitals_beta, epsilons, epsilons_alpha, epsilons_beta)
+                if P_alpha_DIIS is not None and P_beta_DIIS is not None: 
+                    
+                    P_alpha = P_alpha_DIIS
+                    P_beta = P_beta_DIIS
+
+                    P = (P_alpha + P_beta) / 2
+                
+            # Damping factor is applied to the density matrix
+            P, damping_factor = apply_damping(P, P_old, orbital_gradient, calculation)
+
+            # Energy is sum of electronic and nuclear energies
+            E_total = E + V_NN  
+
+            # Data outputted to console
+            format_output_line(E_total, delta_E, maxDP, rmsDP, damping_factor, step, orbital_gradient, calculation, silent=silent)
+
+            # Check for convergence of energy and density
+            if check_convergence(calculation.scf_conv, step, delta_E, maxDP, rmsDP, orbital_gradient, calculation, silent=silent): 
+
+                kinetic_energy, nuclear_electron_energy, coulomb_energy, exchange_energy = calculate_energy_components(None, None, T, V_NE, None, None, None, None, P, J, K, reference)
+
+                scf_output = Output(E_total, S, P, P / 2, P / 2, molecular_orbitals, molecular_orbitals, molecular_orbitals, epsilons, epsilons, epsilons, kinetic_energy, nuclear_electron_energy, coulomb_energy, exchange_energy)
                
-                return scf_output, kinetic_energy, nuclear_electron_energy, coulomb_energy, exchange_energy 
+                return scf_output
 
 
     elif reference == "UHF":
 
-        #Initialises vectors for DIIS
-        Fock_vector_alpha = []
-        Fock_vector_beta = []
-
-        diis_error_vector_alpha = []
-        diis_error_vector_beta = []
+        # Initialises vectors for DIIS
+        Fock_vector = []
+        DIIS_error_vector = []
 
         P = P_alpha + P_beta 
 
-
         for step in range(1, maximum_iterations):
 
-            #Sets previous values to current value to initialise loop for comparison later
-            electronic_energy_old = electronic_energy
-            P_old_alpha = P_alpha
-            P_old_beta = P_beta
+            E_old = E
             P_old = P
 
-            #Constructs Fock matrices
-            F_alpha, F_beta, J_alpha, J_beta, K_alpha, K_beta = construct_UHF_Fock_matrix(H_Core, V_EE, P_alpha, P_beta)
+            P_old_alpha = P_alpha
+            P_old_beta = P_beta
 
-            #Calculates DIIS error
-            orbital_gradient_alpha, Fock_vector_alpha, diis_error_vector_alpha = calculate_diis_error(F_alpha, P_alpha, S, X, Fock_vector_alpha, diis_error_vector_alpha)
-            orbital_gradient_beta, Fock_vector_beta, diis_error_vector_beta = calculate_diis_error(F_beta, P_beta, S, X, Fock_vector_beta, diis_error_vector_beta)
+            # Constructs Fock matrices
+            F_alpha, F_beta, J_alpha, J_beta, K_alpha, K_beta = construct_UHF_Fock_matrices(H_core, ERI_AO, P_alpha, P_beta)
 
-            #Diagonalises Fock matrices 
+            # Apply level shift only once
+            if calculation.level_shift and not level_shift_removed:
+                
+                F_alpha = apply_level_shift(F_alpha, P_alpha, calculation)
+                F_beta = apply_level_shift(F_beta, P_beta, calculation)
+
+                if orbital_gradient < 0.02:
+
+                    level_shift_removed = True
+                    log("   (Level Shift Off)", calculation, 1, end="", silent=silent)
+
+            # Calculate DIIS error and append to Fock and error vectors
+            orthogonalised_DIIS_error_alpha, orbital_gradient_alpha = calculate_DIIS_error(F_alpha, P_alpha, S, X)
+            orthogonalised_DIIS_error_beta, orbital_gradient_beta = calculate_DIIS_error(F_beta, P_beta, S, X)
+
+            orbital_gradient = max(orbital_gradient_alpha, orbital_gradient_beta)
+
+            e_combined = np.concatenate((orthogonalised_DIIS_error_alpha.flatten(), orthogonalised_DIIS_error_beta.flatten()))
+            DIIS_error_vector.append(e_combined)
+
+            Fock_vector.append((F_alpha, F_beta))
+
+            # Diagonalises Fock matrices 
             epsilons_alpha, molecular_orbitals_alpha = diagonalise_Fock_matrix(F_alpha, X)
             epsilons_beta, molecular_orbitals_beta = diagonalise_Fock_matrix(F_beta, X)
 
-            #Constructs density matrices
+            # Constructs density matrices
             P_alpha = construct_density_matrix(molecular_orbitals_alpha, n_alpha, n_electrons_per_orbital)
             P_beta = construct_density_matrix(molecular_orbitals_beta, n_beta, n_electrons_per_orbital)
 
-            #Calculates electronic energy
-            electronic_energy = calculate_UHF_electronic_energy(P_alpha, P_beta, H_Core, F_alpha, F_beta)
-
             P = P_alpha + P_beta
 
-            #Calculates the changes in energy and density
-            delta_E, maxDP, rmsDP = calculate_SCF_changes(electronic_energy, electronic_energy_old, P, P_old)
+            # Calculates electronic energy
+            E = calculate_UHF_electronic_energy(P_alpha, P_beta, H_core, F_alpha, F_beta)
 
-            #Applies level shift
-            if level_shift and not level_shift_off:
+            # Calculates the changes in energy and density
+            delta_E, maxDP, rmsDP = calculate_SCF_changes(E, E_old, P, P_old)
 
-                if min(orbital_gradient_alpha, orbital_gradient_beta) > 0.00001:
-
-                    F_alpha = apply_level_shift(F_alpha, P_alpha, level_shift_parameter)
-                    F_beta = apply_level_shift(F_beta, P_beta, level_shift_parameter)
-
-                else: 
-
-                    level_shift_off = True
-                    if not silent: log("    (Level Shift Off)", calculation, 1, end="")
-
-            #Clears old Fock matrices if Fock vector is too old
-            if len(Fock_vector_alpha) > 10: 
+            # Clears old Fock matrices if Fock vector is too old
+            if len(Fock_vector) > 10: 
                 
-                del Fock_vector_alpha[0]
-                del diis_error_vector_alpha[0]
+                del Fock_vector[0]
+                del DIIS_error_vector[0]
 
-            if len(Fock_vector_beta) > 10:
-
-                del Fock_vector_beta[0]
-                del diis_error_vector_beta[0]
-
-            #Updates density matrix from DIIS extrapolated Fock matrix, applies it if the equations were solved successfully
-            if step > 2 and diis and orbital_gradient_alpha < 0.02 and orbital_gradient_alpha > 1e-5 and orbital_gradient_beta < 0.02 and orbital_gradient_beta > 1e-5: 
-
-                P_diis_alpha = update_diis(Fock_vector_alpha, diis_error_vector_alpha, F_alpha, X, n_alpha, n_electrons_per_orbital, calculation, silent=silent)
-                P_diis_beta = update_diis(Fock_vector_beta, diis_error_vector_beta, F_beta, X, n_beta, n_electrons_per_orbital, calculation, silent=silent)
-
-                if type(P_diis_alpha) != int: P_alpha = P_diis_alpha
-                else: Fock_vector_alpha = []
+            # Update density matrices using DIIS extrapolated Fock matrices
+            if step > 2 and calculation.DIIS and orbital_gradient < 0.2: 
                 
-                if type(P_diis_beta) != int: P_beta = P_diis_beta
-                else: Fock_vector_beta = []
-   
-   
-            orbital_gradient = orbital_gradient_alpha + orbital_gradient_beta
+                P_alpha_DIIS, P_beta_DIIS, Fock_vector, DIIS_error_vector = update_DIIS(DIIS_error_vector, Fock_vector, n_alpha, n_beta, X, n_electrons_per_orbital, calculation, silent=silent)
+                
+                if P_alpha_DIIS is not None: P_alpha = P_alpha_DIIS
+                if P_beta_DIIS is not None: P_beta = P_beta_DIIS
 
-            #Damping factor is applied to the density matrix
-            P_alpha, damping_factor = damping(P_alpha, P_old_alpha, orbital_gradient_alpha, calculation)
-            P_beta, damping_factor = damping(P_beta, P_old_beta, orbital_gradient_beta, calculation)
 
-            #Energy is sum of electronic and nuclear energies
-            E = electronic_energy + V_NN  
+            # Damping factor is applied to the density matrix
+            P_alpha, damping_factor_alpha = apply_damping(P_alpha, P_old_alpha, orbital_gradient_alpha, calculation)
+            P_beta, damping_factor_beta = apply_damping(P_beta, P_old_beta, orbital_gradient_beta, calculation)
+            
+            P = P_alpha + P_beta
 
-            #Outputs useful information to console
-            if not silent: format_output_line(E, delta_E, maxDP, rmsDP, damping_factor, step, orbital_gradient, calculation)
+            damping_factor = max(damping_factor_alpha, damping_factor_beta)
 
-            #Check for convergence of energy and density
-            if check_convergence(scf_conv, step, delta_E, maxDP, rmsDP, orbital_gradient, calculation, silent=silent): 
+            # Energy is sum of electronic and nuclear energies
+            E_total = E + V_NN  
 
-                kinetic_energy, nuclear_electron_energy, coulomb_energy, exchange_energy = calculate_UHF_energy_components(P_alpha, P_beta, T, V_NE, J_alpha, J_beta, K_alpha,K_beta)
+            # Outputs useful information to console
+            format_output_line(E_total, delta_E, maxDP, rmsDP, damping_factor, step, orbital_gradient, calculation, silent=silent)
+            
+
+            # Check for convergence of energy and density
+            if check_convergence(calculation.scf_conv, step, delta_E, maxDP, rmsDP, orbital_gradient, calculation, silent=silent): 
+
+                kinetic_energy, nuclear_electron_energy, coulomb_energy, exchange_energy = calculate_energy_components(P_alpha, P_beta, T, V_NE, J_alpha, J_beta, K_alpha, K_beta, P, None, None, reference)
                 
                 epsilons_combined = np.concatenate((epsilons_alpha, epsilons_beta))
                 molecular_orbitals_combined = np.concatenate((molecular_orbitals_alpha, molecular_orbitals_beta), axis=1)
@@ -634,10 +714,10 @@ def SCF(molecule, calculation, T, V_NE, V_EE, V_NN, S, X, E_guess, P=None, P_alp
                 epsilons = epsilons_combined[np.argsort(epsilons_combined)]
                 molecular_orbitals = molecular_orbitals_combined[:, np.argsort(epsilons_combined)]
 
-                #Builds SCF Output object with useful quantities
-                scf_output = Output(E, S, P, P_alpha, P_beta, molecular_orbitals, molecular_orbitals_alpha, molecular_orbitals_beta, epsilons, epsilons_alpha, epsilons_beta)
+                # Builds SCF Output object with useful quantities
+                scf_output = Output(E_total, S, P, P_alpha, P_beta, molecular_orbitals, molecular_orbitals_alpha, molecular_orbitals_beta, epsilons, epsilons_alpha, epsilons_beta, kinetic_energy, nuclear_electron_energy, coulomb_energy, exchange_energy )
 
-                return scf_output, kinetic_energy, nuclear_electron_energy, coulomb_energy, exchange_energy
+                return scf_output
             
 
     error(f"Self-consistent field not converged in {maximum_iterations} iterations! Increase maximum iterations or give up.")

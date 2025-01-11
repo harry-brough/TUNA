@@ -9,38 +9,20 @@ h = constants.h
 def calculate_translational_internal_energy(temperature): 
 
     """
-    
-    Requires temperature (float).
 
-    Calculates and returns the translational internal energy from statistical mechanics (float).
-    
+    Calculates translational contribution to internal energy.
+
+    Args:
+        temperature (float): Temperature in kelvin
+
+    Returns:
+        (3 / 2) * k * temperature (float): Translational internal energy
+
     """
 
     return (3 / 2) * k * temperature
 
 
-
-def calculate_rotational_entropy(point_group, temperature, rotational_constant_per_m):
-    
-    """
-    
-    Requires point group (string), temperature (float), rotational constant (float).
-
-    Calculates the rotational entropy, depending on the point group.
-
-    Returns rotational entropy (float).
-    
-    """
-
-    rotational_constant_per_bohr = bohr_to_angstrom(rotational_constant_per_m) * 1e-10
-
-    if point_group == "Dinfh": symmetry_number = 2
-    elif point_group == "Cinfv": symmetry_number = 1
-
-    #Equation for rotational entropy from statistical mechanics
-    rotational_entropy = k * (1 + np.log(k * temperature / (symmetry_number * rotational_constant_per_bohr * h * c)))
-
-    return rotational_entropy
 
 
 
@@ -48,10 +30,14 @@ def calculate_rotational_entropy(point_group, temperature, rotational_constant_p
 def calculate_rotational_internal_energy(temperature): 
     
     """
-    
-    Requires temperature (float).
 
-    Calculates and returns rotational internal energy for a diatomic (float).
+    Calculates rotational contribution to internal energy.
+
+    Args:
+        temperature (float): Temperature in kelvin
+
+    Returns:
+        k * temperature (float): Rotational internal energy
 
     """
     
@@ -60,19 +46,25 @@ def calculate_rotational_internal_energy(temperature):
 
 
 
+
 def calculate_vibrational_internal_energy(frequency_per_cm, temperature): 
     
     """
-    
-    Requires frequency (float), temperature (float).
 
-    Calculates and returns vibrational internal energy for a diatomic (float), using an equation from statistical mechanics.
+    Calculates vibrational contribution to internal energy.
+
+    Args:   
+        frequency_per_cm (float): Frequency in per cm
+        temperature (float): Temperature in kelvin
+
+    Returns:
+        vibrational_internal_energy (float): Vibrational internal energy
 
     """
      
     vibrational_temperature = calculate_vibrational_temperature(frequency_per_cm)
     
-    #Makes sure an error message isn't printed when dividing by a very small number
+    # Makes sure an error message isn't printed when dividing by a very small number
     with np.errstate(divide='ignore'):
         
         vibrational_internal_energy = k * vibrational_temperature / (np.exp(vibrational_temperature / temperature) - 1)
@@ -83,15 +75,98 @@ def calculate_vibrational_internal_energy(frequency_per_cm, temperature):
 
 
 
-def calculate_electronic_entropy(): 
-    
-    """
-    
-    Assumes an electronic entropy of zero for finite band gap materials, returns 0.
+
+
+
+def calculate_internal_energy(E, E_ZPE, temperature, frequency_per_cm):
 
     """
+
+    Calculates total internal energy.
+
+    Args:   
+        E (float): Molecular energy
+        E_ZPE (float): Zero-point energy
+        temperature (float): Temperature in kelvin
+        frequency_per_cm (float): Frequency in per cm
+
+    Returns:
+        U (float): Internal energy
+        translational_internal_energy (float): Translational internal energy
+        rotational_internal_energy (float): Rotational internal energy
+        vibrational_internal_energy (float): Vibrational internal energy
     
-    return 0
+    """
+
+    translational_internal_energy = calculate_translational_internal_energy(temperature)
+    rotational_internal_energy = calculate_rotational_internal_energy(temperature)
+    vibrational_internal_energy = calculate_vibrational_internal_energy(frequency_per_cm, temperature)
+
+    # Adds together all contributions to internal energy
+    U = E + E_ZPE + translational_internal_energy + rotational_internal_energy + vibrational_internal_energy
+
+    return U, translational_internal_energy, rotational_internal_energy, vibrational_internal_energy
+
+
+
+
+
+
+
+def calculate_translational_entropy(temperature, pressure, mass):
+
+    """
+
+    Calculates translational contribution to entropy.
+
+    Args:   
+        temperature (float): Temperature in kelvin
+        pressure (float): Pressure in atomic units
+        mass (float): Mass in atomic units
+
+    Returns:
+        translational_entropy (float): Translational entropy
+
+    """
+
+    pressure_atomic_units = pressure / constants.pascal_in_atomic_units
+
+    translational_entropy = k * (5 / 2 + np.log(((h * mass * k * temperature) / (h ** 2) ) ** (3 / 2) * (k * temperature / pressure_atomic_units)))
+
+    return translational_entropy
+
+
+
+
+
+
+def calculate_rotational_entropy(point_group, temperature, rotational_constant_per_m):
+    
+    """
+
+    Calculates rotational contribution to entropy.
+
+    Args:   
+        point_group (string): Molecular point group
+        temperature (float): Temperature in kelvin
+        rotational_constant_per_m (float): Rotational constant in per m
+
+    Returns:
+        rotational_entropy (float): Rotational entropy
+
+    """
+
+    rotational_constant_per_bohr = bohr_to_angstrom(rotational_constant_per_m) * 1e-10
+
+    if point_group == "Dinfh": symmetry_number = 2
+    elif point_group == "Cinfv": symmetry_number = 1
+
+    rotational_entropy = k * (1 + np.log(k * temperature / (symmetry_number * rotational_constant_per_bohr * h * c)))
+
+    return rotational_entropy
+
+
+
 
 
 
@@ -99,14 +174,18 @@ def calculate_electronic_entropy():
 def calculate_vibrational_entropy(frequency_per_cm, temperature):
 
     """
-    
-    Requires frequency (float) and temperature (float).
 
-    Returns vibrational entropy (float), calculated from statistical mechanics equation.
-    
+    Calculates vibrational contribution to entropy.
+
+    Args:   
+        frequency_per_cm (string): Frequency in per cm
+        temperature (float): Temperature in kelvin
+
+    Returns:
+        vibrational_entropy (float): Vibrational entropy
+
     """
 
-    #Calculates the vibrational temperature
     vibrational_temperature = calculate_vibrational_temperature(frequency_per_cm)
 
     vibrational_entropy = k * (vibrational_temperature / (temperature * (np.exp(vibrational_temperature / temperature) - 1)) - np.log(1 - np.exp(-vibrational_temperature / temperature)))
@@ -116,21 +195,25 @@ def calculate_vibrational_entropy(frequency_per_cm, temperature):
 
 
 
-def calculate_translational_entropy(temperature, pressure, mass):
 
-    """
-    
-    Requires temperature (float), pressure (float) and molecular mass (float).
 
-    Returns translational entropy (float), from equation from statistical mechanics.
+def calculate_electronic_entropy(): 
     
     """
 
-    pressure_atomic_units = pressure / constants.pascal_in_atomic_units
+    Calculates electronic contribution to entropy.
 
-    translational_entropy = k * (5 / 2 + np.log(((h * mass * k * temperature) / (h ** 2) ) ** (3/2) * (k * temperature / pressure_atomic_units)))
+    Args:   
+        None : This function does not require arguments
 
-    return translational_entropy
+    Returns:
+        0 : Assumes molecule is only in the ground state
+
+    """
+    
+    return 0
+
+
 
 
 
@@ -138,21 +221,35 @@ def calculate_translational_entropy(temperature, pressure, mass):
 def calculate_entropy(temperature, frequency_per_cm, point_group, rotational_constant_per_m, masses, pressure):
 
     """
-    
-    Requires temperature (float), frequency (float), point group (string), rotational constant (float), masses (array) and pressure (float).
 
-    Calculates all the different contributions to entropy, then adds them all together.
+    Calculates total entropy.
 
-    Returns entropy (float), translational entropy, rotational entropy, vibrational entropy and electronic entropy (floats).
+    Args:   
+        temperature (float): Temperature in kelvin
+        frequency_per_cm (float): Frequency in per cm
+        point_group (string): Molecular point group
+        rotational_constant_per_m (float): Rotational constant in per m
+        masses (array): Array of masses in atomic units
+        pressure (float): Pressure in atomic units
+
+    Returns:
+        S (float) : Total entropy
+        translational_entropy (float) : Total entropy
+        translational_entropy (float) : Translational entropy
+        rotational_entropy (float) : Rotational entropy
+        vibrational_entropy (float) : Vibrational entropy
+        electronic_entropy (float) : Electronic entropy
 
     """
 
-    translational_entropy = calculate_translational_entropy(temperature, pressure, np.sum(masses))
+    total_mass = np.sum(masses)
+
+    translational_entropy = calculate_translational_entropy(temperature, pressure, total_mass)
     rotational_entropy = calculate_rotational_entropy(point_group, temperature, rotational_constant_per_m)
     vibrational_entropy = calculate_vibrational_entropy(frequency_per_cm, temperature)
     electronic_entropy = calculate_electronic_entropy()
 
-    #Total entropy is just the sum of all the contributions
+    # Total entropy is just the sum of all the contributions
     S = translational_entropy + rotational_entropy + vibrational_entropy + electronic_entropy
 
     return S, translational_entropy, rotational_entropy, vibrational_entropy, electronic_entropy
@@ -160,17 +257,22 @@ def calculate_entropy(temperature, frequency_per_cm, point_group, rotational_con
 
 
 
+
+
 def calculate_vibrational_temperature(frequency_per_cm):
 
     """
-    
-    Requires frequency (float).
-    
-    Calculates and returns vibrational temperature, from statistical mechanics equation (float).
+
+    Calculates vibrational temperature.
+
+    Args:   
+        frequency_per_cm (float): Frequency in per cm
+
+    Returns:
+        vibrational_temperature (float) : Vibrational temperature in kelvin
 
     """
 
-    #Conversion into atomic units
     frequency_per_bohr = bohr_to_angstrom(frequency_per_cm) * 1e-8
 
     vibrational_temperature = h * frequency_per_bohr * c / k
@@ -180,36 +282,20 @@ def calculate_vibrational_temperature(frequency_per_cm):
 
 
 
-def calculate_internal_energy(E, E_ZPE, temperature, frequency_per_cm):
-
-    """
-    
-    Requires energy (float), zero-point energy (float), temperature (float) and frequency (float).
-
-    Calculates all contributions to internal energy, and adds them together to the total internal energy.
-
-    Returns internal energy (float), translational, rotational and vibrational contributions (floats).
-    
-    """
-
-    translational_internal_energy = calculate_translational_internal_energy(temperature)
-    rotational_internal_energy = calculate_rotational_internal_energy(temperature)
-    vibrational_internal_energy = calculate_vibrational_internal_energy(frequency_per_cm, temperature)
-
-    #Adds together all contributions to internal energy
-    U = E + E_ZPE + translational_internal_energy + rotational_internal_energy + vibrational_internal_energy
-
-    return U, translational_internal_energy, rotational_internal_energy, vibrational_internal_energy
-
 
 
 def calculate_enthalpy(U, temperature): 
     
     """
-    
-    Requires internal energy (float) and temperature (float).
 
-    Returns enthalpy (float).
+    Calculates enthalpy.
+
+    Args:   
+        U (float): Internal energy
+        temperature (float): Temperature in kelvin
+
+    Returns:
+        U + k * temperature (float) : Enthalpy
 
     """
 
@@ -218,13 +304,20 @@ def calculate_enthalpy(U, temperature):
 
 
 
+
 def calculate_free_energy(H, temperature, S):
         
     """
-    
-    Requires enthalpy (float), temperature (float) and entropy (float).
 
-    Returns Gibbs free energy (float).
+    Calculates Gibbs free energy.
+
+    Args:   
+        H (float): Enthalpy
+        temperature (float): Temperature in kelvin
+        S (float): Entropy
+
+    Returns:
+        H - temperature * S (float) : Gibbs free energy
 
     """
     

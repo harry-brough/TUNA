@@ -1,5 +1,46 @@
 # Changelog
 
+## TUNA 0.6.0 — 11/01/2025
+
+### Added
+
+- Transition intensities for harmonic frequency calculations
+- Excited state energy and density by configuration interaction singles, `CIS`
+- Perturbative doubles correction to the CIS excitation energy with CIS(D) via `CIS[D]` keyword
+- Excited state coordinate scans, geometry optimisations, harmonic frequencies and MD simulations
+- Orbital-optimised MP2 energy and density, `OMP2`
+- Support for unrestricted references for SCS-MP2, SCS-MP3 and OMP2
+- Unrelaxed density matrix for unrestricted MP2, SCS-MP2 and OMP2
+- Keywords for same-spin, opposite-spin and MP3 scaling for SCS-MP3; `SSS`, `OSS` and `MP3S`
+- Keywords for orbital-optimised MP2 convergence criteria and maximum iterations; `OMP2CONV` and `OMP2MAXITER`
+- Keywords for state of interest in CIS, threshold for printing contributions, and number of states to print; `ROOT`, `CISTHRESH` and `NSTATES`
+- Optional spin contamination calculation for MP2 calculations
+- Optional population analysis and dipole moment calculations using CIS unrelaxed density matrix
+- Faster one- and two-electron integrals
+
+### Changed
+
+- Rotational constant is now printed in both GHz and cm<sup>—1</sup>
+- Molecular information at the beginning of a calculation now prints number of alpha and beta electrons
+- Reorganised and improved prettiness of console log
+- Maximum SCF iterations is now 100 by default, instead of 50
+- Various and widespread low level optimisations, and all code is now fully documented
+- Keywords `NORMALSCF` and `NORMALOPT` for SCF and geometry convergence replaced by `MEDIUMSCF` and `MEDIUMOPT`
+- Default geometry convergence criteria set to `MEDIUMOPT` rather than `TIGHTOPT` by default, except for `OPTFREQ` calculations
+- Absorbed tuna_dispersion module into tuna_energy, and added new tuna_ci module for current and future spin orbital calculations
+- Used more colour in the console log
+
+### Fixed
+
+- Density matrix is now read in from previous optimisation step, except when initial guess orbitals are rotated, as previously intended
+- Unrestricted MP2 was not working correctly for esoteric charge and multiplicity combinations
+- Absolute change in density matrix is now checked, rather than signed change, for SCF convergence
+- DIIS now works much more reliably for UHF, by combining the alpha and beta error vectors, converges faster for both RHF and UHF
+- One extra SCF cycle is no longer undertaken for no reason
+- Various miscellaneous bug fixes and improvements to error handling
+
+<br>
+
 ## TUNA 0.5.1  —  14/11/2024
 
 ### Added
@@ -35,7 +76,7 @@
 ### Added
 
 - *Ab initio* molecular dynamics
-- Unrestricted Hartree--Fock energy and density
+- Unrestricted Hartree-Fock energy and density
 - Unrestricted MP2 energies
 - Restricted and unrestricted MP3 energies
 - Spin-component-scaled MP3 energies
@@ -116,7 +157,7 @@
 - Keywords for additional print, `P`, and SCF damping, `DAMP`
 - Identification of point group
 
-### Changes
+### Changed
 
 - Updated to Python 3.12
 - Significantly increased integral efficiency using vectorised operations

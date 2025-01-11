@@ -1,261 +1,443 @@
 import sys
 import numpy as np
-from tuna_util import *
+from termcolor import colored
 
-class primitive_gaussian():
+class Primitive_Gaussian:
 
     """
-    
-    Defines a primitive Gaussian, based on its contraction coefficient, exponent (alpha) and coordinates. 
-    
-    Determines the normalisation constant (N) based on these parameters.
-    
+
+    Defines a primitive Gaussian.
+
     """
 
     def __init__(self, alpha, coeff, coordinates):
-        
+
+        """
+
+        Initialises primitive gaussian class and defines normalisation constant, N.
+
+        Args:
+            alpha (float): Gaussian exponent   
+            coeff (float): Contraction coefficient
+            coordinates (array): Atomic coordinates
+
+        Returns:
+            None: Nothing is returned
+
+        """
+            
         self.alpha = alpha
         self.coeff = coeff
         self.coordinates = coordinates
         self.N = (2.0 * alpha / np.pi) ** 0.75
 
 
-def generate_atomic_orbitals(atom_type, basis, location):
+
+
+
+def generate_atomic_orbitals(atom, basis, coordinates):
+    
+    """
+
+    Generates a set of atomic atomic_orbitals for a given basis set, atom type and coordinates.
+
+    Args:
+        atom (string): Atom symbol   
+        basis (string): Basis set
+        coordinates (array): Atomic coordinates
+
+    Returns:
+        atomic_orbitals (array): Array of primitive gaussians
 
     """
 
-    Requires the atom type (string), basis set (string) and coordinates of the atom (array). 
-
-    Standardises the name of the basis set by replacing user inputted hyphens with underscores, and plusses with "_plus". Then, uses
-    this to call the name of the function in this module that matches the requested basis set, which will generate the relevant atomic
-    orbitals.
-    
-    Returns the atomic orbitals (array).
-    
-    """
-    
+    # Replaces hyphens and pluses with words and underscores, then looks up the appropriate function to generate atomic atomic_orbitals
     basis = basis.replace("-", "_")
     basis = basis.replace("+", "_plus")
     
-    atomic_orbitals = getattr(sys.modules[__name__], f"generate_{basis.lower()}_orbitals")(atom_type, location)
+    atomic_orbitals = getattr(sys.modules[__name__], f"generate_{basis.lower()}_atomic_orbitals")(atom, coordinates)
 
     return atomic_orbitals
     
 
-def generate_sto_3g_orbitals(atom, location):
 
-    orbitals = []
-    
+
+
+def generate_sto_3g_atomic_orbitals(atom, coordinates):
+
+    """
+
+    Generates a set of STO-3G atomic atomic_orbitals.
+
+    Args:
+        atom (string): Atom symbol   
+        coordinates (array): Atomic coordinates
+
+    Returns:
+        atomic_orbitals (array): Array of primitive gaussians
+
+    """
+
     if atom == "H" or atom == "XH":
     
-        orbitals = [[primitive_gaussian(3.425250914, 0.1543289673, location), 
-        primitive_gaussian(0.6239137298, 0.5353281423, location), 
-        primitive_gaussian(0.1688554040, 0.4446345422, location)]]
+        atomic_orbitals = [[Primitive_Gaussian(3.425250914, 0.1543289673, coordinates), 
+        Primitive_Gaussian(0.6239137298, 0.5353281423, coordinates), 
+        Primitive_Gaussian(0.1688554040, 0.4446345422, coordinates)]]
         
     elif atom == "HE" or atom == "XHE":
         
-        orbitals = [[primitive_gaussian(0.6362421394E+01, 0.1543289673E+00, location), 
-        primitive_gaussian(0.1158922999E+01, 0.5353281423E+00, location), 
-        primitive_gaussian(0.3136497915E+00, 0.4446345422E+00, location)]]
-        
-    return orbitals
+        atomic_orbitals = [[Primitive_Gaussian(0.6362421394E+01, 0.1543289673E+00, coordinates), 
+        Primitive_Gaussian(0.1158922999E+01, 0.5353281423E+00, coordinates), 
+        Primitive_Gaussian(0.3136497915E+00, 0.4446345422E+00, coordinates)]]
+
+    else: print_basis_error("STO-3G", atom)
+
+    return atomic_orbitals
 
 
-def generate_sto_6g_orbitals(atom,location):
 
-    orbitals = []
+
+
+def generate_sto_6g_atomic_orbitals(atom,coordinates):
+
+    """
+
+    Generates a set of STO-6G atomic atomic_orbitals.
+
+    Args:
+        atom (string): Atom symbol   
+        coordinates (array): Atomic coordinates
+
+    Returns:
+        atomic_orbitals (array): Array of primitive gaussians
+
+    """
     
     if atom == "H" or atom == "XH":
     
-        orbitals = [[primitive_gaussian(0.3552322122E+02, 0.9163596281E-02, location), 
-        primitive_gaussian(0.6513143725E+01, 0.4936149294E-01, location), 
-        primitive_gaussian(0.1822142904E+01, 0.1685383049E+00, location),
-        primitive_gaussian(0.6259552659E+00, 0.3705627997E+00, location), 
-        primitive_gaussian(0.2430767471E+00, 0.4164915298E+00, location), 
-        primitive_gaussian(0.1001124280E+00, 0.1303340841E+00, location)]]
+        atomic_orbitals = [[Primitive_Gaussian(0.3552322122E+02, 0.9163596281E-02, coordinates), 
+        Primitive_Gaussian(0.6513143725E+01, 0.4936149294E-01, coordinates), 
+        Primitive_Gaussian(0.1822142904E+01, 0.1685383049E+00, coordinates),
+        Primitive_Gaussian(0.6259552659E+00, 0.3705627997E+00, coordinates), 
+        Primitive_Gaussian(0.2430767471E+00, 0.4164915298E+00, coordinates), 
+        Primitive_Gaussian(0.1001124280E+00, 0.1303340841E+00, coordinates)]]
         
     elif atom == "HE" or atom == "XHE":
     
-        orbitals = [[primitive_gaussian(0.6598456824E+02, 0.9163596281E-02, location), 
-        primitive_gaussian(0.1209819836E+02, 0.4936149294E-01, location), 
-        primitive_gaussian(0.3384639924E+01, 0.1685383049E+00, location),
-        primitive_gaussian(0.1162715163E+01, 0.3705627997E+00, location), 
-        primitive_gaussian(0.4515163224E+00, 0.4164915298E+00, location), 
-        primitive_gaussian(0.1859593559E+00, 0.1303340841E+00, location)]]
+        atomic_orbitals = [[Primitive_Gaussian(0.6598456824E+02, 0.9163596281E-02, coordinates), 
+        Primitive_Gaussian(0.1209819836E+02, 0.4936149294E-01, coordinates), 
+        Primitive_Gaussian(0.3384639924E+01, 0.1685383049E+00, coordinates),
+        Primitive_Gaussian(0.1162715163E+01, 0.3705627997E+00, coordinates), 
+        Primitive_Gaussian(0.4515163224E+00, 0.4164915298E+00, coordinates), 
+        Primitive_Gaussian(0.1859593559E+00, 0.1303340841E+00, coordinates)]]
         
-        
-    return orbitals
-    
-    
-def generate_6_31g_orbitals(atom,location):
+    else: print_basis_error("STO-6G", atom)
 
-    orbitals = []
+    return atomic_orbitals
+    
+
+
+
+
+    
+def generate_6_31g_atomic_orbitals(atom,coordinates):
+
+    """
+
+    Generates a set of 6-31G atomic atomic_orbitals.
+
+    Args:
+        atom (string): Atom symbol   
+        coordinates (array): Atomic coordinates
+
+    Returns:
+        atomic_orbitals (array): Array of primitive gaussians
+
+    """
     
     if atom == "H" or atom == "XH":
     
-        orbitals = [[primitive_gaussian( 18.7311370000, 0.0334945995, location), 
-        primitive_gaussian(2.8253937000, 0.2347269467, location), 
-        primitive_gaussian(0.6401217000, 0.8137573184, location)],[primitive_gaussian( 0.1612778000, 1.000000, location)]]
+        atomic_orbitals = [[Primitive_Gaussian( 18.7311370000, 0.0334945995, coordinates), 
+        Primitive_Gaussian(2.8253937000, 0.2347269467, coordinates), 
+        Primitive_Gaussian(0.6401217000, 0.8137573184, coordinates)],[Primitive_Gaussian( 0.1612778000, 1.000000, coordinates)]]
     
     elif atom == "HE" or atom == "XHE":
     
-        orbitals = [[primitive_gaussian(0.3842163400E+02, 0.0401397393, location), 
-        primitive_gaussian(5.7780300000, 0.2612460970, location), 
-        primitive_gaussian(1.2417740000, 0.7931846246, location)],[primitive_gaussian( 0.2979640000, 1.000000, location)]]
+        atomic_orbitals = [[Primitive_Gaussian(0.3842163400E+02, 0.0401397393, coordinates), 
+        Primitive_Gaussian(5.7780300000, 0.2612460970, coordinates), 
+        Primitive_Gaussian(1.2417740000, 0.7931846246, coordinates)],[Primitive_Gaussian( 0.2979640000, 1.000000, coordinates)]]
     
-    
-    return orbitals
+    else: print_basis_error("6-31G", atom)
+
+    return atomic_orbitals
 
 
-def generate_6_31_plusg_orbitals(atom,location):
 
-    orbitals = []
+
+
+def generate_6_31_plusg_atomic_orbitals(atom,coordinates):
+
+    """
+
+    Generates a set of 6-31+G atomic atomic_orbitals.
+
+    Args:
+        atom (string): Atom symbol   
+        coordinates (array): Atomic coordinates
+
+    Returns:
+        atomic_orbitals (array): Array of primitive gaussians
+
+    """
     
     if atom == "H" or atom == "XH":
     
-        orbitals = [[primitive_gaussian( 18.7311370000, 0.0334945995, location), 
-        primitive_gaussian(2.8253937000, 0.2347269467, location), 
-        primitive_gaussian(0.6401217000, 0.8137573184, location)],[primitive_gaussian( 0.1612778000, 1.000000, location)]]
+        atomic_orbitals = [[Primitive_Gaussian( 18.7311370000, 0.0334945995, coordinates), 
+        Primitive_Gaussian(2.8253937000, 0.2347269467, coordinates), 
+        Primitive_Gaussian(0.6401217000, 0.8137573184, coordinates)],[Primitive_Gaussian( 0.1612778000, 1.000000, coordinates)]]
     
     elif atom == "HE" or atom == "XHE":
     
-        orbitals = [[primitive_gaussian(0.3842163400E+02, 0.0401397393, location), 
-        primitive_gaussian(5.7780300000, 0.2612460970, location), 
-        primitive_gaussian(1.2417740000, 0.7931846246, location)],[primitive_gaussian( 0.2979640000, 1.000000, location)]]
+        atomic_orbitals = [[Primitive_Gaussian(0.3842163400E+02, 0.0401397393, coordinates), 
+        Primitive_Gaussian(5.7780300000, 0.2612460970, coordinates), 
+        Primitive_Gaussian(1.2417740000, 0.7931846246, coordinates)],[Primitive_Gaussian( 0.2979640000, 1.000000, coordinates)]]
     
+    else: print_basis_error("6-31+G", atom)
     
-    return orbitals
+    return atomic_orbitals
 
 
-def generate_6_31_plus_plusg_orbitals(atom,location):
 
-    orbitals = []
+
+
+def generate_6_31_plus_plusg_atomic_orbitals(atom,coordinates):
+
+    """
+
+    Generates a set of 6-31++G atomic atomic_orbitals.
+
+    Args:
+        atom (string): Atom symbol   
+        coordinates (array): Atomic coordinates
+
+    Returns:
+        atomic_orbitals (array): Array of primitive gaussians
+
+    """
     
     if atom == "H" or atom == "XH":
     
-        orbitals = [[primitive_gaussian(0.1873113696E+02, 0.3349460434E-01, location), 
-        primitive_gaussian(0.2825394365E+01, 0.2347269535E+00, location), 
-        primitive_gaussian(0.6401216923E+00, 0.8137573261E+00, location)],[primitive_gaussian(0.1612777588E+00, 1.000000, location)],[primitive_gaussian(0.3600000000E-01, 0.1000000000E+01, location)]]
+        atomic_orbitals = [[Primitive_Gaussian(0.1873113696E+02, 0.3349460434E-01, coordinates), 
+        Primitive_Gaussian(0.2825394365E+01, 0.2347269535E+00, coordinates), 
+        Primitive_Gaussian(0.6401216923E+00, 0.8137573261E+00, coordinates)],[Primitive_Gaussian(0.1612777588E+00, 1.000000, coordinates)],[Primitive_Gaussian(0.3600000000E-01, 0.1000000000E+01, coordinates)]]
     
     elif atom == "HE" or atom == "XHE":
     
-        orbitals = [[primitive_gaussian(0.3842163400E+02, 0.4013973935E-01, location), 
-        primitive_gaussian(0.5778030000E+01, 0.2612460970E+00, location), 
-        primitive_gaussian(0.1241774000E+01, 0.7931846246E+00, location)],[primitive_gaussian(0.2979640000E+00, 1.000000, location)],[primitive_gaussian(0.8600000000E-01, 1.000000, location)]]
+        atomic_orbitals = [[Primitive_Gaussian(0.3842163400E+02, 0.4013973935E-01, coordinates), 
+        Primitive_Gaussian(0.5778030000E+01, 0.2612460970E+00, coordinates), 
+        Primitive_Gaussian(0.1241774000E+01, 0.7931846246E+00, coordinates)],[Primitive_Gaussian(0.2979640000E+00, 1.000000, coordinates)],[Primitive_Gaussian(0.8600000000E-01, 1.000000, coordinates)]]
     
-    
-    return orbitals
+    else: print_basis_error("6-31++G", atom)
+
+    return atomic_orbitals
 
 
-def generate_3_21g_orbitals(atom, location):
 
-    orbitals = []
+
+
+def generate_3_21g_atomic_orbitals(atom, coordinates):
+
+    """
+
+    Generates a set of 3-21G atomic atomic_orbitals.
+
+    Args:
+        atom (string): Atom symbol   
+        coordinates (array): Atomic coordinates
+
+    Returns:
+        atomic_orbitals (array): Array of primitive gaussians
+
+    """
     
     if atom == "H" or atom == "XH":
     
-        orbitals = [[primitive_gaussian(0.5447178000E+01, 0.1562849787E+00, location), 
-        primitive_gaussian(0.8245472400E+00, 0.9046908767E+00, location)],[primitive_gaussian(0.1831915800E+00, 1.000000, location)]]
+        atomic_orbitals = [[Primitive_Gaussian(0.5447178000E+01, 0.1562849787E+00, coordinates), 
+        Primitive_Gaussian(0.8245472400E+00, 0.9046908767E+00, coordinates)],[Primitive_Gaussian(0.1831915800E+00, 1.000000, coordinates)]]
     
     elif atom == "HE" or atom == "XHE":
     
-        orbitals = [[primitive_gaussian(0.1362670000E+02, 0.1752298718E+00, location), 
-        primitive_gaussian(0.1999350000E+01 , 0.8934823465E+00, location)],[primitive_gaussian(0.3829930000E+00, 1.000000, location)]]
+        atomic_orbitals = [[Primitive_Gaussian(0.1362670000E+02, 0.1752298718E+00, coordinates), 
+        Primitive_Gaussian(0.1999350000E+01 , 0.8934823465E+00, coordinates)],[Primitive_Gaussian(0.3829930000E+00, 1.000000, coordinates)]]
     
-    
-    return orbitals
-    
-    
-def generate_4_31g_orbitals(atom, location):
+    else: print_basis_error("3-21G", atom)
 
-    orbitals = []
+    return atomic_orbitals
+    
+
+
+
+    
+def generate_4_31g_atomic_orbitals(atom, coordinates):
+
+    """
+
+    Generates a set of 4-31G atomic atomic_orbitals.
+
+    Args:
+        atom (string): Atom symbol   
+        coordinates (array): Atomic coordinates
+
+    Returns:
+        atomic_orbitals (array): Array of primitive gaussians
+
+    """
     
     if atom == "H" or atom == "XH":
     
-        orbitals = [[primitive_gaussian(0.1873113696E+02, 0.3349460434E-01, location), 
-        primitive_gaussian(0.2825394365E+01, 0.2347269535E+00, location),primitive_gaussian(0.6401216923E+00, 0.8137573261E+00, location)],
-        [primitive_gaussian(0.1612777588E+00, 1.000000, location)]]
+        atomic_orbitals = [[Primitive_Gaussian(0.1873113696E+02, 0.3349460434E-01, coordinates), 
+        Primitive_Gaussian(0.2825394365E+01, 0.2347269535E+00, coordinates),Primitive_Gaussian(0.6401216923E+00, 0.8137573261E+00, coordinates)],
+        [Primitive_Gaussian(0.1612777588E+00, 1.000000, coordinates)]]
     
     elif atom == "HE" or atom == "XHE":
     
-        orbitals = [[primitive_gaussian(0.3842163400E+02, 0.4013973935E-01, location), 
-        primitive_gaussian(0.5778030000E+01, 0.2612460970E+00, location), 
-        primitive_gaussian(0.1241774000E+01, 0.7931846246E+00, location)],[primitive_gaussian(0.2979640000E+00, 1.000000, location)]]
+        atomic_orbitals = [[Primitive_Gaussian(0.3842163400E+02, 0.4013973935E-01, coordinates), 
+        Primitive_Gaussian(0.5778030000E+01, 0.2612460970E+00, coordinates), 
+        Primitive_Gaussian(0.1241774000E+01, 0.7931846246E+00, coordinates)],[Primitive_Gaussian(0.2979640000E+00, 1.000000, coordinates)]]
     
-    
-    return orbitals
-    
-    
-def generate_6_311g_orbitals(atom,location):
+    else: print_basis_error("4-31G", atom)
 
-    orbitals = []
+    return atomic_orbitals
+    
+    
+
+
+
+def generate_6_311g_atomic_orbitals(atom,coordinates):
+
+    """
+
+    Generates a set of 6-311G atomic atomic_orbitals.
+
+    Args:
+        atom (string): Atom symbol   
+        coordinates (array): Atomic coordinates
+
+    Returns:
+        atomic_orbitals (array): Array of primitive gaussians
+
+    """
     
     if atom == "H" or atom == "XH":
     
-        orbitals = [[primitive_gaussian(33.86500, 0.0254938, location), 
-        primitive_gaussian(5.094790, 0.190373, location), 
-        primitive_gaussian(1.158790,  0.852161, location)],[primitive_gaussian(0.325840, 1.000000, location)],[primitive_gaussian(0.102741, 1.000000, location)]]
+        atomic_orbitals = [[Primitive_Gaussian(33.86500, 0.0254938, coordinates), 
+        Primitive_Gaussian(5.094790, 0.190373, coordinates), 
+        Primitive_Gaussian(1.158790,  0.852161, coordinates)],[Primitive_Gaussian(0.325840, 1.000000, coordinates)],[Primitive_Gaussian(0.102741, 1.000000, coordinates)]]
         
         
     elif atom == "HE" or atom == "XHE":
     
-        orbitals = [[primitive_gaussian(98.12430, 0.0287452, location), 
-        primitive_gaussian(14.76890, 0.208061, location), 
-        primitive_gaussian(3.318830,  0.837635, location)],[primitive_gaussian(0.874047, 1.000000, location)],[primitive_gaussian(0.244564, 1.000000, location)]]
-        
-        
-    return orbitals
-    
-def generate_6_311_plusg_orbitals(atom,location):
+        atomic_orbitals = [[Primitive_Gaussian(98.12430, 0.0287452, coordinates), 
+        Primitive_Gaussian(14.76890, 0.208061, coordinates), 
+        Primitive_Gaussian(3.318830,  0.837635, coordinates)],[Primitive_Gaussian(0.874047, 1.000000, coordinates)],[Primitive_Gaussian(0.244564, 1.000000, coordinates)]]
 
-    orbitals = []
+    else: print_basis_error("6-311G", atom)
+
+    return atomic_orbitals
+    
+
+
+
+
+def generate_6_311_plusg_atomic_orbitals(atom,coordinates):
+
+    """
+
+    Generates a set of 6-311+G atomic atomic_orbitals.
+
+    Args:
+        atom (string): Atom symbol   
+        coordinates (array): Atomic coordinates
+
+    Returns:
+        atomic_orbitals (array): Array of primitive gaussians
+
+    """
     
     if atom == "H" or atom == "XH":
     
-        orbitals = [[primitive_gaussian(33.86500, 0.0254938, location), 
-        primitive_gaussian(5.094790, 0.190373, location), 
-        primitive_gaussian(1.158790,  0.852161, location)],[primitive_gaussian(0.325840, 1.000000, location)],[primitive_gaussian(0.102741, 1.000000, location)]]
+        atomic_orbitals = [[Primitive_Gaussian(33.86500, 0.0254938, coordinates), 
+        Primitive_Gaussian(5.094790, 0.190373, coordinates), 
+        Primitive_Gaussian(1.158790,  0.852161, coordinates)],[Primitive_Gaussian(0.325840, 1.000000, coordinates)],[Primitive_Gaussian(0.102741, 1.000000, coordinates)]]
         
         
     elif atom == "HE" or atom == "XHE":
     
-        orbitals = [[primitive_gaussian(98.12430, 0.0287452, location), 
-        primitive_gaussian(14.76890, 0.208061, location), 
-        primitive_gaussian(3.318830,  0.837635, location)],[primitive_gaussian(0.874047, 1.000000, location)],[primitive_gaussian(0.244564, 1.000000, location)]]
+        atomic_orbitals = [[Primitive_Gaussian(98.12430, 0.0287452, coordinates), 
+        Primitive_Gaussian(14.76890, 0.208061, coordinates), 
+        Primitive_Gaussian(3.318830,  0.837635, coordinates)],[Primitive_Gaussian(0.874047, 1.000000, coordinates)],[Primitive_Gaussian(0.244564, 1.000000, coordinates)]]
         
-        
-    return orbitals
-    
-    
-def generate_6_311_plus_plusg_orbitals(atom,location):
+    else: print_basis_error("6-311+G", atom)
 
-    orbitals = []
+    return atomic_orbitals
+    
+
+
+
+    
+def generate_6_311_plus_plusg_atomic_orbitals(atom,coordinates):
+
+    """
+
+    Generates a set of 6-311++G atomic atomic_orbitals.
+
+    Args:
+        atom (string): Atom symbol   
+        coordinates (array): Atomic coordinates
+
+    Returns:
+        atomic_orbitals (array): Array of primitive gaussians
+
+    """
 
     if atom == "H" or atom == "XH":
     
-        orbitals = [[primitive_gaussian(33.86500, 0.0254938, location), 
-        primitive_gaussian(5.094790, 0.190373, location), 
-        primitive_gaussian(1.158790, 0.852161, location)],[primitive_gaussian(0.325840, 1.000000, location)],[primitive_gaussian(0.102741, 1.000000, location)],[primitive_gaussian(0.036, 1.000000, location)]]
+        atomic_orbitals = [[Primitive_Gaussian(33.86500, 0.0254938, coordinates), 
+        Primitive_Gaussian(5.094790, 0.190373, coordinates), 
+        Primitive_Gaussian(1.158790, 0.852161, coordinates)],[Primitive_Gaussian(0.325840, 1.000000, coordinates)],[Primitive_Gaussian(0.102741, 1.000000, coordinates)],[Primitive_Gaussian(0.036, 1.000000, coordinates)]]
     
-    if atom == "HE" or atom == "XHE": error("The 6-311++G is not parameterised for He. Choose another basis set!")
+    else: print_basis_error("6-311++G", atom)
     
-    return orbitals
-    
-    
-def generate_hto_cbs_orbitals(atom,location):
+    return atomic_orbitals
 
-    orbitals = []
 
-    if atom == "H" or atom == "XH" or atom == "HE" or atom == "XHE":
+
+
+
+def print_basis_error(basis, atom):
+
+    """
+
+    Prints an error message and exits the calculation if a basis set is not parameterised.
+
+    Args:
+        basis (string): Basis set
+        atom (string): Atom symbol   
+
+    Returns:
+        None: Nothing is returned
+
+    """
+
+    if "X" in atom: 
+        
+        atom = atom.split("X")[1]
+        ghost = "ghost "
     
-        orbitals = [[primitive_gaussian(98.12430, 0.0287452, location), 
-        primitive_gaussian(14.76890, 0.208061, location), 
-        primitive_gaussian(3.318830,  0.837635, location)],[primitive_gaussian(0.874047, 1.000000, location)],[primitive_gaussian(0.244564, 1.000000, location)],[primitive_gaussian(0.036, 1.000000, location)],
-        [primitive_gaussian(0.01, 1.000000, location)],[primitive_gaussian(30, 1.000000, location)],[primitive_gaussian(1000, 1.000000, location)], 
-        [primitive_gaussian(35, 1.000000, location)], [primitive_gaussian(500, 1.000000, location)], [primitive_gaussian(100, 1.000000, location)],
-        [primitive_gaussian(0.001, 1.000000, location)],[primitive_gaussian(33.86500, 0.0254938, location), 
-        primitive_gaussian(5.094790, 0.190373, location), 
-        primitive_gaussian(1.158790, 0.852161, location)],[primitive_gaussian(0.325840, 1.000000, location)],[primitive_gaussian(0.102741, 1.000000, location)]]
+    else: ghost = ""
+
+    atom = atom.lower().capitalize()
+
+    print(colored(f"\nERROR: The {basis} basis is not parameterised for {ghost}{atom}. Choose another basis set!  :(\n","light_red"))
+    sys.exit()
     
-   
-    
-    return orbitals

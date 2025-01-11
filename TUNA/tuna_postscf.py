@@ -1,75 +1,85 @@
 import numpy as np
 from tuna_util import *
-
-def calculate_electronic_dipole_moment(P, D): 
-    
-    """
-    
-    Requires density matrix (array) and dipole integrals (array).
-
-    Calculates and returns electronic dipole moment (float) by efficient tensor contraction.
-    
-    """
-    
-    return -np.einsum("ij,ij->",P,D,optimize=True)
-
+import tuna_scf as scf
 
 
 def calculate_reduced_mass(masses): 
-    
-    """
-    
-    Requires masses (array).
-
-    Calculates and returns the reduced mass (float).
 
     """
-    
-    return np.prod(masses) / np.sum(masses)
+
+    Calculates the reduced mass.
+
+    Args:   
+        masses (array): Mass array in atomic units
+
+    Returns:
+        reduced_mass (float): Reduced mass in atomic units
+
+    """
+
+    reduced_mass = np.prod(masses) / np.sum(masses) 
+
+    return reduced_mass
+
+
+
 
  
 
 def calculate_nuclear_dipole_moment(centre_of_mass, charges, coordinates): 
 
     """
-    
-    Requires centre of mass (float), nuclear charges (list), coordinates (array).
 
-    Calculates nuclear dipole moment by iterating through nuclei.
-    
-    Returns nuclear dipole moment (float).
-    
+    Calculates the nuclear dipole moment.
+
+    Args:   
+        centre_of_mass (float): Centre of mass in bohr 
+        charges (array): Nuclear charges
+        coordinates (array): Nuclear coordinates
+
+    Returns:
+        nuclear_dipole_moment (float): Nuclear dipole moment
+
     """
 
     nuclear_dipole_moment = 0
-    
+
     for i in range(len(charges)): 
-        
+
         nuclear_dipole_moment += (coordinates[i][2] - centre_of_mass) * charges[i]
-        
+    
+
     return nuclear_dipole_moment
    
+
+
+
+
 
 
 def calculate_rotational_constant(masses, coordinates):
 
     """
-    
-    Requires masses (list) and coordinates (array).
 
-    Calculates the rotational constant for a linear molecule and convertst to various units.
-    
-    Returns the rotational constant in per cm and GHz.
+    Calculates the rotational constant of a molecule.
+
+    Args:   
+        masses (float): Mass array in atomic units
+        coordinates (array): Nuclear coordinates
+
+    Returns:
+        rotational_constant_per_cm (float): Rotational constant in per cm
+        rotational_constant_GHz (float): Rotational constant in GHz
 
     """
 
     bond_length = np.linalg.norm(coordinates[1] - coordinates[0])
     reduced_mass = calculate_reduced_mass(masses)
     
-    #Standard equation for linear molecule's rotational constant
+    # Standard equation for linear molecule's rotational constant
     rotational_constant_hartree = 1 / (2 * reduced_mass * bond_length ** 2)
 
-    #Various unit conversions  
+    # Various unit conversions  
     rotational_constant_per_bohr = rotational_constant_hartree / (constants.h * constants.c)
     rotational_constant_per_cm = rotational_constant_per_bohr / (100 * constants.bohr_in_metres)
     rotational_constant_GHz = constants.per_cm_in_GHz * rotational_constant_per_cm
@@ -77,190 +87,264 @@ def calculate_rotational_constant(masses, coordinates):
     return rotational_constant_per_cm, rotational_constant_GHz
 
 
-def calculate_koopman_parameters(epsilons, n_occ):
 
-    """
-    
-    Requires Hartree-Fock eigenvalues (array) and number of occupied orbitals (int).
 
-    Calculates electron affinity and ionisation energy using Koopman's theorem with eigenvalues, as well as the difference in orbital energy
-    of the HOMO and LUMO.
 
-    Returns ionisation energy (float), electron affinity (float) and HOMO-LUMO gap (float).
+
+
+def calculate_Koopmans_parameters(epsilons, n_occ):
 
     """
 
-    #IE = -HOMO
+    Calculates the Koopmans' theorem parameters of a system (ionisation energy, electron affinity and HOMO-LUMO gap).
+
+    Args:   
+        epsilons (array): Fock matrix eigenvalues
+        n_occ (int): Number of occupied orbitals
+
+    Returns:
+        ionisation_energy (float): Ionisation energy
+        electron_affinity (float): Electron affinity
+        HOMO_LUMO_gap (float): Difference in energy between HOMO and LUMO
+
+    """
+
+    # IE = -HOMO
     ionisation_energy = -1 * epsilons[n_occ - 1]
 
-    #As long as LUMO exists, EA = -LUMO    
+    # As long as LUMO exists, EA = -LUMO    
     if len(epsilons) > n_occ: 
     
         electron_affinity = -1 * epsilons[n_occ]
-        homo_lumo_gap = ionisation_energy - electron_affinity
+        HOMO_LUMO_gap = ionisation_energy - electron_affinity
         
     else: 
     
         electron_affinity = "---"
-        homo_lumo_gap = "---"
+        HOMO_LUMO_gap = "---"
         
-        warning("WARNING: Size of basis is too small for electron affinity calculation!")
+        warning("Size of basis is too small for electron affinity calculation!")
 
 
-    return ionisation_energy, electron_affinity, homo_lumo_gap
+    return ionisation_energy, electron_affinity, HOMO_LUMO_gap
  
  
+
+
 
 
 def print_energy_components(nuclear_electron_energy, kinetic_energy, exchange_energy, coulomb_energy, V_NN, calculation):
 
     """
-    
-    Requires nuclear-electron energy (float), kinetic energy (float), exchange energy (float), Coulomb energy (float), 
-    nuclear-nuclear repulsion energy (float) and calculation (Calculation).
 
-    Calculates the one- and two-electron contributions to energy, and prints all the energy components out to the console.
-    
+    Prints the various components of the Hartree-Fock energy to the console.
+
+    Args:   
+        nuclear_electron_energy (float): Nuclear-electron attraction energy
+        kinetic_energy (float): Electronic kinetic energy
+        exchange_energy (float): Exchange energy
+        coulomb_energy (float): Coulomb energy
+        V_NN (float): Nuclear-nuclear repulsion energy
+        calculation (Calculation): Calculation object
+
+    Returns:
+        None: Nothing is returned
+
     """
 
-    #Adds up different energy components
+    # Adds up different energy components
     one_electron_energy = nuclear_electron_energy + kinetic_energy
     two_electron_energy = exchange_energy + coulomb_energy
     electronic_energy = one_electron_energy + two_electron_energy
+
     total_energy = electronic_energy + V_NN
             
-    log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 2)      
-    log("              Energy Components       ", calculation, 2)
-    log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 2)
+    log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 2)      
+    log("                  Energy Components       ", calculation, 2, colour="white")
+    log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 2)
             
+    log(f"  Kinetic energy:                   {kinetic_energy:15.10f}", calculation, 2)
 
-    log(f"  Kinetic energy:              {kinetic_energy:.10f}", calculation, 2)
+    log(f"  Coulomb energy:                   {coulomb_energy:15.10f}", calculation, 2)
+    log(f"  Exchange energy:                  {exchange_energy:15.10f}", calculation, 2)
+    log(f"  Nuclear repulsion energy:         {V_NN:15.10f}", calculation, 2)
+    log(f"  Nuclear attraction energy:        {nuclear_electron_energy:15.10f}\n", calculation, 2)      
 
-    log(f"  Coulomb energy:              {coulomb_energy:.10f}", calculation, 2)
-    log(f"  Exchange energy:            {exchange_energy:.10f}", calculation, 2)
-    log(f"  Nuclear repulsion energy:    {V_NN:.10f}", calculation, 2)
-    log(f"  Nuclear attraction energy:  {nuclear_electron_energy:.10f}\n", calculation, 2)      
-
-    log(f"  One-electron energy:        {one_electron_energy:.10f}", calculation, 2)
-    log(f"  Two-electron energy:         {two_electron_energy:.10f}", calculation, 2)
-    log(f"  Electronic energy:          {electronic_energy:.10f}\n", calculation, 2)
+    log(f"  One-electron energy:              {one_electron_energy:15.10f}", calculation, 2)
+    log(f"  Two-electron energy:              {two_electron_energy:15.10f}", calculation, 2)
+    log(f"  Electronic energy:                {electronic_energy:15.10f}\n", calculation, 2)
             
-    log(f"  Total energy:               {total_energy:.10f}", calculation, 2)
-    log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 2)  
+    log(f"  Total energy:                     {total_energy:15.10f}", calculation, 2)
+    log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 2)  
 
 
 
-def calculate_population_analysis(P, S, R, ao_ranges, atoms, charges):
+
+
+
+
+
+def calculate_spin_contamination(P_alpha, P_beta, n_alpha, n_beta, S, calculation, type, silent=False):
 
     """
+
+    Calculates and prints theoretical spin squared operator and spin contamination.
+
+    Args:
+        P_alpha (array): Density matrix of alpha electrons in AO basis
+        P_beta (array): Density matrix of beta electrons in AO basis
+        n_alpha (int): Number of alpha electrons
+        n_beta (int): Number of beta electrons
+        S (array): Overlap matrix in AO basis
+        calculation (Calculation): Calculation object
+        type (str): Either UHF or MP2
+        silent (bool, optional): Should anything be printed
+
+    Returns:
+        None: Nothing is returned
+
+    """
+
+    s_squared_exact = ((n_alpha - n_beta) / 2) * ((n_alpha - n_beta) / 2 + 1)
+
+    # Tensor contraction to calculate spin contamination
+    spin_contamination = n_beta - np.trace(P_alpha.T @ S @ P_beta.T @ S)
     
-    Requires density matrix (array), overlap matrix (array), spin density matrix (alpha minus beta density matrices, array), list of atoms (list)
-    and list of charges (list).
-    
-    Performs Mulliken, Lowdin and Mayer population analysis. Does all of these together to share for loop infrastructure.
-    
-    Returns the Mulliken bond order (float), charges and total charge (floats), the Lowin bond order (float), charges and total charge (floats), and the Mayer bond order (float),
-    free and total valences (floats).
-    
+    s_squared = s_squared_exact + spin_contamination
+
+    if type == "UHF": priority = 2
+    else: priority = 3
+
+    log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, priority, silent=silent)
+    log(f"                {type} Spin Contamination       ", calculation, priority, silent=silent, colour="white")
+    log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, priority, silent=silent)
+
+    log(f"  Exact S^2 expectation value:            {s_squared_exact:9.6f}", calculation, priority, silent=silent)
+    log(f"  {type} S^2 expectation value:              {s_squared:9.6f}", calculation, priority, silent=silent)
+    log(f"\n  Spin contamination:                     {spin_contamination:9.6f}", calculation, priority, silent=silent)
+
+    log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n", calculation, priority, silent=silent)
+
+
+
+
+
+
+
+def calculate_population_analysis(P, S, R, AO_ranges, atoms, charges):
+
+    """
+
+    Calculates the bond order, atomic charges and valences for Mulliken, Lowden and Mayer population analysis
+
+    Args:   
+        P (array): Density matrix in AO basis
+        S (array): Overlap matrix in AO basis
+        R (array): Spin density matrix in AO basis
+        AO_ranges (array): Separates basis onto each atom
+        atoms (list): Atomic symbols
+        charges (array): Nuclear charges
+
+    Returns:
+        bond_order_Mulliken (float): Mulliken bond order
+        charges_Mulliken (array): Mulliken atomic charges
+        total_charges_Mulliken (float): Sum of Mulliken charges
+        bond_order_Lowdin (float): Lowdin bond order
+        charges_Lowdin (array): Lowdin atomic charges
+        total_charges_Lowdin (float): Sum of Lowdin charges
+        bond_order_Mayer (float): Mayer bond order
+        free_valences (array): Mayer free valences
+        total_valences (array): Mayer total valences
+
     """
 
     PS = P @ S
     RS = R @ S
 
-    #Diagonalises overlap matrix to form density matrix in orthogonalised Lowdin basis
+    # Diagonalises overlap matrix to form density matrix in orthogonalised Lowdin basis
     S_vals, S_vecs = np.linalg.eigh(S)
     S_sqrt = S_vecs * np.sqrt(S_vals) @ S_vecs.T
-    P_lowdin = S_sqrt @ P @ S_sqrt
+    P_Lowdin = S_sqrt @ P @ S_sqrt
 
-    #Initialisation of various variables
-    bond_order_mayer = bond_order_lowdin = bond_order_mulliken = 0
-
+    bond_order_Mayer = bond_order_Lowdin = bond_order_Mulliken = 0
 
     total_valences = [0, 0]
-    populations_mulliken = [0, 0]
-    populations_lowdin = [0, 0]
-    charges_mulliken = [0, 0]
-    charges_lowdin = [0, 0]
+    populations_Mulliken = [0, 0]
+    populations_Lowdin = [0, 0]
+    charges_Mulliken = [0, 0]
+    charges_Lowdin = [0, 0]
 
 
-    #Sums over the ranges of each atomic orbital over atom A, then atom B to build the three bond orders
-    for i in range(ao_ranges[0]):
-        for j in range(ao_ranges[0], ao_ranges[0] + ao_ranges[1]):
+    # Sums over the ranges of each atomic orbital over atom A, then atom B to build the three bond orders
+    for i in range(AO_ranges[0]):
+        for j in range(AO_ranges[0], AO_ranges[0] + AO_ranges[1]):
 
-            bond_order_mayer += PS[i,j] * PS[j,i] + RS[i,j] * RS[j,i]
-            bond_order_lowdin += P_lowdin[i,j] ** 2
-            bond_order_mulliken += 2 * P[i,j] * S[i,j]
+            bond_order_Mayer += PS[i,j] * PS[j,i] + RS[i,j] * RS[j,i]
+            bond_order_Lowdin += P_Lowdin[i,j] ** 2
+            bond_order_Mulliken += 2 * P[i,j] * S[i,j]
     
-    #Sums over atoms, then corresponding ranges of atomic orbitals in the density matrix, to build the valences and populations
+    # Sums over atoms, then corresponding ranges of atomic orbitals in the density matrix, to build the valences and populations
     for atom in range(len(atoms)):
 
-        if atom == 0: atomic_ranges = list(range(ao_ranges[0]))
-        elif atom == 1: atomic_ranges = list(range(ao_ranges[0], ao_ranges[0] + ao_ranges[1]))
+        if atom == 0: atomic_ranges = list(range(AO_ranges[0]))
+        elif atom == 1: atomic_ranges = list(range(AO_ranges[0], AO_ranges[0] + AO_ranges[1]))
 
         for i in atomic_ranges:
             
-            populations_lowdin[atom] += P_lowdin[i,i] 
-            populations_mulliken[atom] += PS[i,i]
-            total_valences[atom] += np.einsum("j,j->", PS[i, atomic_ranges], PS[atomic_ranges, i],optimize=True)
+            populations_Lowdin[atom] += P_Lowdin[i,i] 
+            populations_Mulliken[atom] += PS[i,i]
+            total_valences[atom] += np.einsum("j,j->", PS[i, atomic_ranges], PS[atomic_ranges, i], optimize=True)
 
-        charges_mulliken[atom] = charges[atom] - populations_mulliken[atom]
-        charges_lowdin[atom] = charges[atom] - populations_lowdin[atom]
+        charges_Mulliken[atom] = charges[atom] - populations_Mulliken[atom]
+        charges_Lowdin[atom] = charges[atom] - populations_Lowdin[atom]
 
-        total_valences[atom] = 2 * populations_mulliken[atom] - total_valences[atom]
+        total_valences[atom] = 2 * populations_Mulliken[atom] - total_valences[atom]
 
-    #Adds up total charges and calculates free valences from total and bonded valences
-    total_charges_mulliken = np.sum(charges_mulliken)
-    total_charges_lowdin = np.sum(charges_lowdin)
+    # Adds up total charges and calculates free valences from total and bonded valences
+    total_charges_Mulliken = np.sum(charges_Mulliken)
+    total_charges_Lowdin = np.sum(charges_Lowdin)
 
-    free_valences = np.array(total_valences) - bond_order_mayer
-
-
-    return bond_order_mulliken, charges_mulliken, total_charges_mulliken, bond_order_lowdin, charges_lowdin, total_charges_lowdin, bond_order_mayer, free_valences, total_valences
+    free_valences = np.array(total_valences) - bond_order_Mayer
 
 
+    return bond_order_Mulliken, charges_Mulliken, total_charges_Mulliken, bond_order_Lowdin, charges_Lowdin, total_charges_Lowdin, bond_order_Mayer, free_valences, total_valences
 
 
-def format_population_analysis_output(charges_mulliken, charges_lowdin, total_charges_mulliken, bond_order_mulliken, bond_order_lowdin, free_valences, total_valences, atoms):
-    
-    """
-    
-    Requires Mulliken and Lowdin charges (array), total Mulliken charges (float), Mulliken and Lowdin bond orders (floats), free and total Mayer valences (arrays) and atoms (list).
 
-    Formats these values appropriately for the terminal output so the decimal points are aligned and negative signs don't mess things up.
 
-    Returns formatted sizes of blank spaces (1, 2 and 3), as well as these formatted values.
 
+
+def calculate_dipole_moment(centre_of_mass, charges, coordinates, P, D):
 
     """
 
-    space = "" if total_charges_mulliken < 0 else "  "
-    space2 = "" if bond_order_mulliken < 0 else "  "
-    space3 = "" if bond_order_lowdin < 0 else " "
+    Calculates the total dipole moment of a molecule.
 
-    atoms_formatted = []
-    free_valences_formatted = []
+    Args:   
+        centre_of_mass (float): Centre of mass
+        charges (array): Nuclear charges
+        coordinates (array): Nuclear coordinates
+        P (array): Density matrix in AO basis
+        D (array): Dipole integral matrix in AO basis
 
-    #Combined into one for loop for performance
-    for i, atom in enumerate(atoms):
-    
-        atom = atom.lower().capitalize()
-        atom = atom + "  :" if len(atom) == 1 else atom + " :"
-        atoms_formatted.append(atom)
+    Returns:
+        total_dipole_moment (float): Total molecular dipole moment in atomic units
+        nuclear_dipole_moment (float): Nuclear dipole moment in atomic units
+        electronic_dipole_moment (float): Electronic dipole moment in atomic units
 
-        if free_valences[i] > 0: free_valences_formatted.append(f" {free_valences[i]:.5f}")
-        else: free_valences_formatted.append(f"{free_valences[i]:.5f}")
+    """
 
-        if total_valences[i] > 0: total_valences[i] = f" {total_valences[i]:.5f}"
-        else: total_valences[i] = f"{total_valences[i]:.5f}"
+    nuclear_dipole_moment = calculate_nuclear_dipole_moment(centre_of_mass, charges, coordinates)        
+    electronic_dipole_moment = -1 * scf.calculate_one_electron_property(P, D)
 
-        if charges_mulliken[i] > 0: charges_mulliken[i] = f" {charges_mulliken[i]:.5f}"
-        else: charges_mulliken[i] = f"{charges_mulliken[i]:.5f}"
+    total_dipole_moment = nuclear_dipole_moment + electronic_dipole_moment
 
-        if charges_lowdin[i] > 0: charges_lowdin[i] = f" {charges_lowdin[i]:.5f}"
-        else: charges_lowdin[i] = f"{charges_lowdin[i]:.5f}"
 
-    
-    return space, space2, space3, charges_mulliken, charges_lowdin, free_valences_formatted, total_valences, atoms_formatted 
+    return total_dipole_moment, nuclear_dipole_moment, electronic_dipole_moment
+
+
+
+
 
 
 
@@ -268,48 +352,58 @@ def print_molecular_orbital_eigenvalues(calculation, reference, n_doubly_occ, n_
 
     """
 
-    Requires calculation (Calculation), reference (string), number of doubly occupied orbitals (int), number of alpha and beta electrons (ints), Hartree-Fock
-    eigenvalues (array), and separate alpha and beta eigenvalues (arrays).
+    Prints the Fock matrix eigenvalues, separately for UHF references.
 
-    Prints out nicely formatted and organised eigenvalues for all orbitals (for RHF) and alpha and beta orbitals separately (for UHF).
+    Args:   
+        calculation (Calculation): Calculation object
+        reference (str): Either RHF or UHF
+        n_doubly_occ (int): Number of doubly occupied orbitals
+        n_alpha (int): Number of alpha orbitals
+        n_beta (int): Number of beta orbitals
+        epsilons (array): Fock matrix eigenvalues
+        epsilons_alpha (array): Alpha Fock matrix eigenvalues
+        epsilons_beta (array): Beta Fock matrix eigenvalues       
+
+    Returns:
+        None: Nothing is returned
 
     """
 
 
-    log("\n ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n     Molecular Orbital Eigenvalues\n ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 3)
+    log("\n ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 3) 
+    log("     Molecular Orbital Eigenvalues", calculation, 3, colour="white")
+    log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 3) 
 
     def print_eigenvalue_header(calculation):
-
+        
+        # Prints the header either once for RHF or twice for UHF
         log("  ~~~~~~~~~~~~~~~~~~~~~~~", calculation, 3)
         log("   N    Occ     Epsilon ", calculation, 3)
         log("  ~~~~~~~~~~~~~~~~~~~~~~~", calculation, 3)
 
 
-    #Prints all the eigenvalues for an array of epsilons and corresponding occupancies, used by UHF and RHF 
+    # Prints all the eigenvalues for an array of epsilons and corresponding occupancies, used by UHF and RHF 
     def print_eigenvalues(epsilons, occupancies):
 
         for i, epsilon in enumerate(epsilons):
-            
-            space = "" if epsilon < 0 else " "
 
-            if i < 9: log(f"   {i + 1}     {occupancies[i]}    {space} {np.round(epsilon,decimals=6)}", calculation, 3)
-            else: log(f"  {i + 1}     {occupancies[i]}  {space}   {np.round(epsilon,decimals=6)}", calculation, 3)
+            log(f"   {i + 1}     {occupancies[i]}   {epsilon:10.6f}", calculation, 3)
 
         log("  ~~~~~~~~~~~~~~~~~~~~~~~\n", calculation, 3)
 
 
-    #Prints alpha and beta eigenvalues separately
+    # Prints alpha and beta eigenvalues separately
     if reference == "UHF":
 
         log("\n  Alpha orbital eigenvalues:\n", calculation, 3)
         print_eigenvalue_header(calculation)
         
-        #Occupied orbitals are alpha electrons only
+        # Occupied orbitals are alpha electrons only
         occupancies = [1] * n_alpha + [0] * int((len(epsilons_alpha) - n_alpha))
 
         print_eigenvalues(epsilons_alpha, occupancies)
 
-        #If beta electrons are present, the orbitals are occupied only upto the number of beta electrons
+        # If beta electrons are present, the orbitals are occupied only upto the number of beta electrons
         if epsilons_beta is not None:
 
             log("  Beta orbital eigenvalues:\n", calculation, 3)
@@ -324,7 +418,7 @@ def print_molecular_orbital_eigenvalues(calculation, reference, n_doubly_occ, n_
 
         print_eigenvalue_header(calculation)
         
-        #Occupied orbitals (doubly occupied) depend on number electron pairs
+        # Occupied orbitals (doubly occupied) depend on number electron pairs
         occupancies = [2] * n_doubly_occ + [0] * int((len(epsilons) - n_doubly_occ))
 
         print_eigenvalues(epsilons, occupancies)
@@ -336,34 +430,52 @@ def print_molecular_orbital_eigenvalues(calculation, reference, n_doubly_occ, n_
 def print_molecular_orbital_coefficients(molecule, atoms, calculation, reference, epsilons, epsilons_alpha, epsilons_beta, n_alpha, n_beta, n_doubly_occ, molecular_orbitals, molecular_orbitals_alpha, molecular_orbitals_beta):
     
     """
-    
-    Requires molecule (Molecule), atoms (list), calculation (Calculation), reference (string), epsilons (array), alpha and beta epsilons (arrays), number of 
-    alpha and beta electrons (ints), number of double occupied orbitals (int), moelcular orbitals, alpha and beta molecular orbitals (arrays).
 
-    Prints the coefficients of all the molecular orbitals (or separated alpha and beta orbitals for UHF), in a nice and organised way.
-    
+    Prints the coefficients of all molecular orbtials, for both alpha and beta spins for UHF.
+
+    Args:   
+        molecule (Molecule): Molecule object
+        atoms (list): Atomic symbols
+        calculation (Calculation): Calculation object
+        reference (str): Either RHF or UHF
+        epsilons (array): Fock matrix eigenvalues
+        epsilons_alpha (array): Alpha Fock matrix eigenvalues
+        epsilons_beta (array): Beta Fock matrix eigenvalues   
+        n_alpha (int): Number of alpha electrons
+        n_beta (int): Number of beta electrons
+        n_doubly_occ (int): Number of doubly-occupied molecular orbitals
+        molecular_orbitals (array): Molecular orbitals in AO basis    
+        molecular_orbitals_alpha (array): Alpha molecular orbitals in AO basis    
+        molecular_orbitals_beta (array): Beta molecular orbitals in AO basis    
+
+    Returns:
+        None: Nothing is returned
+
     """
 
-    log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n     Molecular Orbital Coefficients\n ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 3)
-
-    #Initialises various quantities
+    log("\n ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 3) 
+    log("     Molecular Orbital Coefficients", calculation, 3, colour="white")
+    log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 3) 
+    
+    # Initialises various quantities
     symbol_list = []
     n_list = []
     switch_value = 0
 
-    #Builds a list of atomic symbols and number of atomic orbitals per atom
+    # Builds a list of atomic symbols and number of atomic orbitals per atom
     for i, atom in enumerate(molecule.mol):
         for j, _ in enumerate(atom):
             
             symbol_list.append(atoms[i])                  
             n_list.append(j + 1)
             
-            #Determines the index at which the orbitals switch over from one atomic centre to the other
+            # Determines the index at which the orbitals switch over from one atomic centre to the other
             if i == 1 and j == 0: 
                 
                 switch_value = len(symbol_list) - 1
 
-    #Prints out coefficients for each orbital, as well as if each is occupied or virtual
+
+    # Prints out coefficients for each orbital, as well as if each is occupied or virtual
     def print_coeffs(switch_value, calculation, symbol_list, molecular_orbitals, n_list, eps, n):
 
         for mo in range(len(eps)):
@@ -375,21 +487,25 @@ def print_molecular_orbital_coefficients(molecule, atoms, calculation, reference
                 
                 
             for k in range(len(molecular_orbitals.T[mo])):
-                
-                #Formats ghost atoms nicely
-                if "X" in symbol_list[k]: 
 
-                    symbol_list[k] = symbol_list[k].split("X")[1]
-                    symbol_list[k] = "X" + symbol_list[k].lower().capitalize()
-                    
-                else: symbol_list[k] = symbol_list[k].lower().capitalize()
+                # Formats ghost atoms nicely, ignores decontracting basis
+                try:
+                    if "X" in symbol_list[k]: 
 
-                if k == switch_value and len(atoms) == 2: log("", calculation, 3)
+                        symbol_list[k] = symbol_list[k].split("X")[1]
+                        symbol_list[k] = "X" + symbol_list[k].lower().capitalize()
+                        
+                    else: symbol_list[k] = symbol_list[k].lower().capitalize()
 
-                log("    " + symbol_list[k] + f"  {n_list[k]}s  :  " + str(np.round(molecular_orbitals.T[mo][k], decimals=4)), calculation, 3)
+                    if k == switch_value and len(atoms) == 2: 
+                        
+                        log("", calculation, 3)
 
+                    log("    " + symbol_list[k] + f"  {n_list[k]}s  :  " + f"{molecular_orbitals.T[mo][k]:7.4f}", calculation, 3)
 
-    #For UHF calculations, do all of the above but separately for alpha and beta orbitals
+                except: pass
+
+    # For UHF calculations, do all of the above but separately for alpha and beta orbitals
     if reference == "UHF":
 
         log("\n  Alpha orbital coefficients:", calculation, 3)
@@ -402,7 +518,8 @@ def print_molecular_orbital_coefficients(molecule, atoms, calculation, reference
 
             print_coeffs(switch_value, calculation, symbol_list, molecular_orbitals_beta, n_list, epsilons_beta, n_beta)
 
-    #For RHF calculations, do all of the above for the combined doubly occupied orbitals
+
+    # For RHF calculations, do all of the above for the combined doubly occupied orbitals
     else:
         
         print_coeffs(switch_value, calculation, symbol_list, molecular_orbitals, n_list, epsilons, n_doubly_occ)
@@ -414,23 +531,40 @@ def print_molecular_orbital_coefficients(molecule, atoms, calculation, reference
 
 
 
-def post_scf_output(molecule, calculation, epsilons, molecular_orbitals, P, S, ao_ranges, D, P_alpha, P_beta, epsilons_alpha, epsilons_beta, molecular_orbitals_alpha, molecular_orbitals_beta):
+
+
+
+def post_SCF_output(molecule, calculation, epsilons, molecular_orbitals, P, S, AO_ranges, D, P_alpha, P_beta, epsilons_alpha, epsilons_beta, molecular_orbitals_alpha, molecular_orbitals_beta):
 
     """
-    
-    Requires molecule (Molecule), calculation (Calculation), epsilons (array), molecular orbitals (array), density matrix (array), overlap matrix (array), ranges of atomic
-    orbitals (array), dipole integrals (array), alpha and beta density matrices (arrays), alpha and beta epsilons (arrays), alpha and beta molecular orbitals (arrays).
 
-    Prints out molecular orbitals, eigenvalues, Koopman's theorem parameters, dipole moment information, population analysis and rotational constant information.
-    
+    Calculates various TUNA properties and prints them to the console.
+
+    Args:   
+        molecule (Molecule): Molecule object
+        calculation (Calculation): Calculation object
+        epsilons (array): Fock matrix eigenvalues
+        molecular_orbitals (array): Molecular orbitals in AO basis    
+        P (array): Density matrix in AO basis
+        S (array): Overlap matrix in AO basis
+        AO_ranges (array): Partition of basis set between atoms
+        D (array): Dipole moment integral matrix in AO basis
+        P_alpha (array): Alpha density matrix in AO basis
+        P_beta (array): Beta density matrix in AO basis
+        epsilons_alpha (array): Alpha Fock matrix eigenvalues
+        epsilons_beta (array): Beta Fock matrix eigenvalues   
+        molecular_orbitals_alpha (array): Alpha molecular orbitals in AO basis    
+        molecular_orbitals_beta (array): Beta molecular orbitals in AO basis    
+
+    Returns:
+        None: Nothing is returned
+
     """
 
     log("\n Beginning calculation of TUNA properties... ", calculation, 3)
 
-    #Unpacks useful calculation quantities    
+    # Unpacks useful quantities    
     method = calculation.method
-
-    #Unpacks useful molecular quantities
     n_doubly_occ = molecule.n_doubly_occ
     n_alpha = molecule.n_alpha
     n_beta = molecule.n_beta
@@ -441,52 +575,50 @@ def post_scf_output(molecule, calculation, epsilons, molecular_orbitals, P, S, a
     charges = molecule.charges
     molecular_structure = molecule.molecular_structure
 
-    #Specifies which density matrix is used for the property calculations
-    if method == "MP2" and calculation.reference == "RHF": log("\n Using the MP2 unrelaxed density for property calculations.", calculation, 1)
-    elif method == "SCS-MP2": warning("The SCS-MP2 density is not implemented! Using unscaled MP2 density for property calculations.")
-    elif method == "UMP2" or method == "MP2" and calculation.reference == "UHF" or method == "MP3" and calculation.reference == "UHF" or method == "UMP3": warning("Using the unrestricted Hartree-Fock density for property calculations.")
-    elif method == "MP3" or method == "SCS-MP3": warning("Using the Hartree-Fock density for property calculations.")
+    # Specifies which density matrix is used for the property calculations
+    if method in ["MP2", "SCS-MP2", "UMP2", "USCS-MP2"]: log("\n Using the MP2 unrelaxed density for property calculations.", calculation, 1)
+    elif method in ["OMP2", "UOMP2"]: log("\n Using the orbital-optimised MP2 relaxed density for property calculations.", calculation, 1)
+    elif method in ["MP3", "SCS-MP3", "UMP3", "USCS-MP3"]: warning("Using the unrelaxed MP2 density for property calculations.")
 
-    #Prints molecular orbital eigenvalues and coefficients
+    # Prints molecular orbital eigenvalues and coefficients
     print_molecular_orbital_eigenvalues(calculation, reference, n_doubly_occ, n_alpha, n_beta, epsilons, epsilons_alpha, epsilons_beta)
     print_molecular_orbital_coefficients(molecule, atoms, calculation, reference, epsilons, epsilons_alpha, epsilons_beta, n_alpha, n_beta, n_doubly_occ, molecular_orbitals, molecular_orbitals_alpha, molecular_orbitals_beta)
 
-    #Prints Koopman theorem parameters
+    # Prints Koopmans' theorem parameters if RHF reference is used
     if calculation.reference == "RHF":
         
-        ionisation_energy, electron_affinity, homo_lumo_gap = calculate_koopman_parameters(epsilons, molecule.n_doubly_occ)
+        ionisation_energy, electron_affinity, HOMO_LUMO_gap = calculate_Koopmans_parameters(epsilons, molecule.n_doubly_occ)
 
-        if type(electron_affinity) == np.float64: electron_affinity = np.round(electron_affinity,decimals=6)
-        if type(homo_lumo_gap) == np.float64: homo_lumo_gap = np.round(homo_lumo_gap,decimals=6)
+        if electron_affinity != "---": electron_affinity = np.round(electron_affinity,decimals=6)
+        if HOMO_LUMO_gap != "---": HOMO_LUMO_gap = np.round(HOMO_LUMO_gap,decimals=6)
             
-        log(f"\n Koopmans' theorem ionisation energy: {ionisation_energy:.6f}", calculation, 2)
-        log(f" Koopmans' theorem electron affinity: {electron_affinity}", calculation, 2)
-        log(f" Energy gap between HOMO and LUMO: {homo_lumo_gap}", calculation, 2)
+        log(f"\n Koopmans' theorem ionisation energy: {ionisation_energy:9.6f}", calculation, 2)
+        log(f" Koopmans' theorem electron affinity: {electron_affinity:9.6f}", calculation, 2)
+        log(f" Energy gap between HOMO and LUMO: {HOMO_LUMO_gap:9.6f}", calculation, 2)
 
-    #As long as there are two real atoms present, calculates rotational constant and dipole moment information
+    # As long as there are two real atoms present, calculates rotational constant and dipole moment information
     if len(molecule.atoms) != 1 and not any("X" in atom for atom in atoms):
 
-        _, B_GHz = calculate_rotational_constant(masses, coordinates)
+        B_per_cm, B_GHz = calculate_rotational_constant(masses, coordinates)
                 
         log(f"\n Rotational constant (GHz): {B_GHz:.3f}", calculation, 2)
+        log(f" Rotational constant (per cm): {B_per_cm:.3f}", calculation, 2)
 
-        #Calculates centre of mass for dipole moment calculations
+        # Calculates centre of mass for dipole moment calculations
         centre_of_mass = calculate_centre_of_mass(masses, coordinates)
 
         log(f"\n Dipole moment origin is the centre of mass, {bohr_to_angstrom(centre_of_mass):.4f} angstroms from the first atom.", calculation, 2)
 
-        D_nuclear = calculate_nuclear_dipole_moment(centre_of_mass, charges, coordinates)        
-        D_electronic = calculate_electronic_dipole_moment(P, D)
-        total_dipole = D_nuclear + D_electronic
+        total_dipole, D_nuclear, D_electronic = calculate_dipole_moment(centre_of_mass, charges, coordinates, P, D)
 
         log("\n ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 2)
-        log("                Dipole Moment", calculation, 2)
+        log("                 Dipole Moment", calculation, 2, colour="white")
         log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 2)
 
         log(f"  Nuclear: {D_nuclear:.6f}    Electronic: {D_electronic:.6f}\n", calculation, 2)
         log(f"  Total: {total_dipole:.6f}", calculation, 2, end="")
 
-        #Prints direction of dipole moment, where plus indicates positive side    
+        # Prints direction of dipole moment, where plus indicates positive side    
         if total_dipole > 0.00001:
 
             log("        " + molecular_structure, calculation, 2, end="")
@@ -497,21 +629,28 @@ def post_scf_output(molecule, calculation, epsilons, molecular_orbitals, P, S, a
             log("        " + molecular_structure, calculation, 2, end="")
             log("  <---+", calculation, 2)
 
-        #If there's no dipole moment, just print out the molecular structure
+        # If there's no dipole moment, just print out the molecular structure
         else: log(f"           {molecular_structure}", calculation, 2)
 
         log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 2)
         
-        #Calculate population analysis and format all the data, then print to console
-        bond_order_mulliken, charges_mulliken, total_charges_mulliken, bond_order_lowdin, charges_lowdin, total_charges_lowdin, bond_order_mayer, free_valences, total_valences = calculate_population_analysis(P, S, P_alpha - P_beta, ao_ranges, atoms, charges)
-        space, space2, space3, charges_mulliken, charges_lowdin, free_valences, total_valences, atoms_formatted = format_population_analysis_output(charges_mulliken, charges_lowdin, total_charges_mulliken, bond_order_mulliken, bond_order_lowdin, free_valences, total_valences, atoms)
+        # Calculate population analysis and format all the data, then print to console
+        bond_order_Mulliken, charges_Mulliken, total_charges_Mulliken, bond_order_Lowdin, charges_Lowdin, total_charges_Lowdin, bond_order_Mayer, free_valences, total_valences = calculate_population_analysis(P, S, P_alpha - P_beta, AO_ranges, atoms, charges)
+        
+        atoms_formatted = []
+
+        for atom in atoms:
+        
+            atom = atom.lower().capitalize()
+            atom = atom + "  :" if len(atom) == 1 else atom + " :"
+            atoms_formatted.append(atom)
 
 
         log("\n ~~~~~~~~~~~~~~~~~~~~~~~~~~     ~~~~~~~~~~~~~~~~~~~~~~~~~~     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 2)
-        log("      Mulliken Charges                Lowdin Charges              Mayer Free, Bonded, Total Valence", calculation, 2)
+        log("      Mulliken Charges                Lowdin Charges              Mayer Free, Bonded, Total Valence", calculation, 2, colour="white")
         log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~     ~~~~~~~~~~~~~~~~~~~~~~~~~~     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 2)
-        log(f"  {atoms_formatted[0]}  {charges_mulliken[0]}                 {atoms_formatted[0]}  {charges_lowdin[0]}                 {atoms_formatted[0]}   {free_valences[0]},  {bond_order_mayer:.5f}, {total_valences[0]}", calculation, 2)
-        log(f"  {atoms_formatted[1]}  {charges_mulliken[1]}                 {atoms_formatted[1]}  {charges_lowdin[1]}                 {atoms_formatted[1]}   {free_valences[1]},  {bond_order_mayer:.5f}, {total_valences[1]}", calculation, 2)
-        log(f"\n  Sum of charges: {total_charges_mulliken:.5f}   {space}   Sum of charges: {total_charges_lowdin:.5f}", calculation, 2) 
-        log(f"  Bond order: {bond_order_mulliken:.5f}      {space2}    Bond order: {bond_order_lowdin:.5f}      {space3}     Bond order: {bond_order_mayer:.5f}", calculation, 2) 
+        log(f"  {atoms_formatted[0]} {charges_Mulliken[0]:8.5f}                  {atoms_formatted[0]} {charges_Lowdin[0]:8.5f}                  {atoms_formatted[0]} {free_valences[0]:8.5f},  {bond_order_Mayer:8.5f},  {total_valences[0]:8.5f}", calculation, 2)
+        log(f"  {atoms_formatted[1]} {charges_Mulliken[1]:8.5f}                  {atoms_formatted[1]} {charges_Lowdin[1]:8.5f}                  {atoms_formatted[1]} {free_valences[1]:8.5f},  {bond_order_Mayer:8.5f},  {total_valences[1]:8.5f}", calculation, 2)
+        log(f"\n  Sum of charges: {total_charges_Mulliken:8.5f}       Sum of charges: {total_charges_Lowdin:8.5f}", calculation, 2) 
+        log(f"  Bond order: {bond_order_Mulliken:8.5f}           Bond order: {bond_order_Lowdin:8.5f}           Bond order: {bond_order_Mayer:8.5f}", calculation, 2) 
         log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~     ~~~~~~~~~~~~~~~~~~~~~~~~~~     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 2)

@@ -229,6 +229,7 @@ class Calculation:
         self.no_trajectory = True if "NOTRAJ" in params else False
 
         self.dens_plot = True if "DENSPLOT" in params else False
+        self.spin_dens_plot = True if "SPINDENSPLOT" in params else False
         self.scan_plot = True if "SCANPLOT" in params else False
 
         self.MO_read = False if self.no_MO_read else True
@@ -241,6 +242,8 @@ class Calculation:
 
         elif self.calculation_type in ["OPT", "FREQ", "OPTFREQ", "MD"]: self.scf_conv = constants.convergence_criteria_SCF["tight"]  
         else: self.scf_conv = constants.convergence_criteria_SCF["medium"]
+
+        if self.method in ["CIS", "CIS[D]", "UCIS", "UCIS[D]"]: self.scf_conv = constants.convergence_criteria_SCF["tight"]  
 
         # Convergence criteria for geometry optimisation
         if "LOOSEOPT" in params: self.geom_conv = constants.convergence_criteria_optimisation["loose"]
@@ -351,7 +354,7 @@ class Calculation:
 
         # Excited state parameters
         self.root = get_param_value("ROOT", int) or 1
-        self.CIS_contribution_threshold = get_param_value("CISTHRESH", float) or 5
+        self.CIS_contribution_threshold = get_param_value("CISTHRESH", float) or 1
         self.n_states = get_param_value("NSTATES", int) or 10
 
 

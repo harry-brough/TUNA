@@ -158,7 +158,9 @@ def print_energy_components(nuclear_electron_energy, kinetic_energy, exchange_en
     electronic_energy = one_electron_energy + two_electron_energy
 
     total_energy = electronic_energy + V_NN
-            
+    
+    virial_ratio = -1 * (total_energy - kinetic_energy) / kinetic_energy
+           
     log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 2)      
     log("                  Energy Components       ", calculation, 2, colour="white")
     log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 2)
@@ -173,10 +175,10 @@ def print_energy_components(nuclear_electron_energy, kinetic_energy, exchange_en
     log(f"  One-electron energy:              {one_electron_energy:15.10f}", calculation, 2)
     log(f"  Two-electron energy:              {two_electron_energy:15.10f}", calculation, 2)
     log(f"  Electronic energy:                {electronic_energy:15.10f}\n", calculation, 2)
+    log(f"  Virial ratio:                     {virial_ratio:15.10f}\n", calculation, 2)
             
     log(f"  Total energy:                     {total_energy:15.10f}", calculation, 2)
     log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 2)  
-
 
 
 
@@ -589,12 +591,12 @@ def post_SCF_output(molecule, calculation, epsilons, molecular_orbitals, P, S, A
         
         ionisation_energy, electron_affinity, HOMO_LUMO_gap = calculate_Koopmans_parameters(epsilons, molecule.n_doubly_occ)
 
-        if electron_affinity != "---": electron_affinity = np.round(electron_affinity,decimals=6)
-        if HOMO_LUMO_gap != "---": HOMO_LUMO_gap = np.round(HOMO_LUMO_gap,decimals=6)
+        if electron_affinity != "---": electron_affinity = f"{electron_affinity:9.6f}"
+        if HOMO_LUMO_gap != "---": HOMO_LUMO_gap = f"{HOMO_LUMO_gap:9.6f}"
             
         log(f"\n Koopmans' theorem ionisation energy: {ionisation_energy:9.6f}", calculation, 2)
-        log(f" Koopmans' theorem electron affinity: {electron_affinity:9.6f}", calculation, 2)
-        log(f" Energy gap between HOMO and LUMO: {HOMO_LUMO_gap:9.6f}", calculation, 2)
+        log(f" Koopmans' theorem electron affinity: {electron_affinity}", calculation, 2)
+        log(f" Energy gap between HOMO and LUMO: {HOMO_LUMO_gap}", calculation, 2)
 
     # As long as there are two real atoms present, calculates rotational constant and dipole moment information
     if len(molecule.atoms) != 1 and not any("X" in atom for atom in atoms):
@@ -634,8 +636,11 @@ def post_SCF_output(molecule, calculation, epsilons, molecular_orbitals, P, S, A
 
         log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 2)
         
+        # Builds spin density matrix
+        R = P_alpha - P_beta if n_alpha + n_beta != 1 else P
+
         # Calculate population analysis and format all the data, then print to console
-        bond_order_Mulliken, charges_Mulliken, total_charges_Mulliken, bond_order_Lowdin, charges_Lowdin, total_charges_Lowdin, bond_order_Mayer, free_valences, total_valences = calculate_population_analysis(P, S, P_alpha - P_beta, AO_ranges, atoms, charges)
+        bond_order_Mulliken, charges_Mulliken, total_charges_Mulliken, bond_order_Lowdin, charges_Lowdin, total_charges_Lowdin, bond_order_Mayer, free_valences, total_valences = calculate_population_analysis(P, S, R, AO_ranges, atoms, charges)
         
         atoms_formatted = []
 

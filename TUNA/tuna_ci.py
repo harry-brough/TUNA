@@ -100,6 +100,34 @@ def build_epsilons_tensor(epsilons_1, epsilons_2, o_1, o_2, v_1, v_2):
 
 
 
+
+def build_six_dimensional_epsilons_tensor(epsilons, o ,v):
+
+    """
+
+    Builds inverse epsilon tensor with shape ijkabc.
+
+    Args:   
+        epsilons (array): Orbital eigenvalues
+        o (slice): Occupied slice
+        v (slice): Virtual slice
+
+    Returns:
+        e_ijkabc (array): Inverse epsilons tensor with shape ijkabc
+
+    """
+
+    n = np.newaxis
+
+    e_ijkabc = 1 / (epsilons[o, n, n, n, n, n] + epsilons[n, o, n, n, n, n] + epsilons[n, n, o, n, n, n] - epsilons[n, n, n, v, n, n] - epsilons[n, n, n, n, v, n] - epsilons[n, n, n, n, n, v])
+
+    return e_ijkabc
+
+
+
+
+
+
 def build_MP2_t_amplitudes(ERI_SO, e_ijab):
 
     """
@@ -423,27 +451,111 @@ def label_spin_orbital(index, calculation):
 
 
 
+def process_CIS_results(excitation_energies, weights):
 
+    """
+    Processes arrays from CIS calculation to group triplets.
 
+    Args:   
+        excitation_energies (array): Excitation energies
+        percent_contributions (array): Percent contributions to each state
+        transition_dipoles (array): Transition dipoles
+        oscillator_strengths (array): Oscillator strengths
 
-def print_excited_state_information(excitation_energies, SCF_output, contributions, weights, excitations_formatted, calculation, silent=False):
-  
+    Returns:
+        new_excitation_energies (array): Excitation energies
+        new_percent_contributions (array): Percent contributions to each state
+        new_transition_dipoles (array): Transition dipoles
+        new_oscillator_strengths (array): Oscillator strengths
+        state_types (array): Either triplet or singlet for states
+
     """
 
+    threshold = 0.001  # Adjust this value as needed
+
+    # Initialize variables to store the new excitation energies, contributions, transition dipoles, oscillator strengths, and state types
+    new_excitation_energies = []
+    new_percent_contributions = []
+    new_weights = []
+    state_types = []  # To store 'Singlet' or 'Triplet' for each state
+
+    n_states = len(excitation_energies)
+    used_indices = set()
+    i = 0
+
+    while i < n_states:
+        if i in used_indices:
+            i += 1
+            continue
+
+        # Start a new group with the current excitation energy
+        group_indices = [i]
+        current_energy = excitation_energies[i]
+
+        # Compare with subsequent excitation energies to find close ones
+        for j in range(i + 1, n_states):
+            if abs(excitation_energies[j] - current_energy) < threshold:
+                group_indices.append(j)
+                used_indices.add(j)
+            else:
+                break
+
+        num_in_group = len(group_indices)
+
+        if num_in_group == 3:
+            # Assume this is a Triplet state
+            state_types.append('Triplet')
+
+            # Average the excitation energies
+            avg_energy = np.mean(excitation_energies[group_indices])
+            new_excitation_energies.append(avg_energy)
+
+            first_weights = weights[:, group_indices[1]]
+            new_weights.append(first_weights)
+
+
+        elif num_in_group == 1:
+
+            # Assume these are Singlet states
+            for idx in group_indices:
+                state_types.append('Singlet')
+                new_excitation_energies.append(excitation_energies[idx])
+                new_weights.append(weights[:, idx])
+
+
+        i = group_indices[-1] + 1  # Move to the next unprocessed excitation energy
+
+    # Convert lists to numpy arrays
+    new_excitation_energies = np.array(new_excitation_energies)
+    new_weights = np.array(new_weights).T
+
+    new_percent_contributions = new_weights ** 2 * 100
+
+
+    return new_excitation_energies, new_weights, new_percent_contributions, state_types
+
+
+
+
+
+
+
+def print_excited_state_information(excitation_energies, SCF_output, contributions, excitations_formatted, calculation, state_types, weights, silent=False):
+      
+    """
     Prints information about each excited state.
 
     Args:   
         excitation_energies (array): Excitation energies
         SCF_output (Output): Output from SCF calculation
         contributions (array): Percent contributions to each state
-        weights (array): Weights for each state
-        excitations_formatted (array): Formatted excitations
+        excitations_formatted (list): Formatted excitations
         calculation (Calculation): Calculation object
+        state_types (list): List of 'Singlet' or 'Triplet' for each state
         silent (bool, optional): Should output be silenced
 
     Returns:
         None: Nothing is returned
-
     """
 
     for state in range(len(excitation_energies)):
@@ -451,23 +563,53 @@ def print_excited_state_information(excitation_energies, SCF_output, contributio
         if state < calculation.n_states:
             
             # Prints excitation energy and energy of each state
-            log(f"\n\n  ~~~~~ State {state + 1} ~~~~~   ", calculation, 2, silent=silent)
+            if calculation.reference == "UHF":
+                state_type = ""
+            else:
+                state_type = state_types[state]
+            log(f"\n\n  ~~~~~ State {state + 1} ~~~~~  {state_type}", calculation, 2, silent=silent)
 
             log(f"\n  Excitation energy:   {excitation_energies[state]:13.10f}", calculation, 2, silent=silent)
             log(f"  Energy of state:     {(excitation_energies[state] + SCF_output.energy):13.10f}\n", calculation, 2, silent=silent)
             
-            # Prints contributions if they are above the threshold
+            # Aggregate contributions for duplicate excitations
+            excitation_contributions = {}
+
             for i, excitation in enumerate(excitations_formatted):
+                
+                # Collect all contributions without threshold check
+                excitation_key = (excitation[0], excitation[1])
 
-                if contributions[i, state] > calculation.CIS_contribution_threshold:
+                if excitation_key not in excitation_contributions:
 
-                    log(f"    {excitation[0]} -> {excitation[1]}  :  {contributions[i, state]:6.2f} %     ({weights[i, state]:9.6f})", calculation, 2, silent=silent)
+                    excitation_contributions[excitation_key] = {
+                        'contribution': contributions[i, state],
+                        'weight': weights[i, state]
+                    }
+
+                else:
+
+                    excitation_contributions[excitation_key]['contribution'] += contributions[i, state]
+                    excitation_contributions[excitation_key]['weight'] += weights[i, state] 
+
+            # Prints the aggregated contributions if they are above the threshold
+            for excitation_key, values in excitation_contributions.items():
+                
+                total_contribution = values['contribution']
+
+                if total_contribution > calculation.CIS_contribution_threshold:
+                    exc_from, exc_to = excitation_key
+
+                    if calculation.reference  == "UHF":
+                        log(f"    {exc_from} -> {exc_to}  :  {total_contribution:6.2f} %    ({values['weight']:8.5f})", calculation, 2, silent=silent)
+                    else:
+                        log(f"    {exc_from} -> {exc_to}  :  {total_contribution:6.2f} %   ", calculation, 2, silent=silent)
 
 
 
 
 
-def print_CIS_absorption_spectrum(molecule, excitation_energies_eV, calculation, frequencies_per_cm, wavelengths_nm, transition_dipoles, oscillator_strengths, silent=False):
+def print_CIS_absorption_spectrum(molecule, excitation_energies_eV, calculation, frequencies_per_cm, wavelengths_nm, transition_dipoles, oscillator_strengths, state_types, silent=False):
     
     """
 
@@ -499,8 +641,11 @@ def print_CIS_absorption_spectrum(molecule, excitation_energies_eV, calculation,
     for state in range(len(excitation_energies_eV)):
 
         if state < calculation.n_states:
+            
+            state_type = " - " + state_types[state][0] if calculation.reference == "RHF" else "  "
+            gap = "" if calculation.reference == "RHF" else "  "
 
-            log(f"    {(state + 1):2}         {excitation_energies_eV[state]:7.4f}          {frequencies_per_cm[state]:8.1f}            {wavelengths_nm[state]:5.1f}              {oscillator_strengths[state]:.6f}          {transition_dipoles[state]:10.7f}", calculation, 1, silent=silent)
+            log(f"  {gap}{(state + 1):2}{state_type}       {excitation_energies_eV[state]:7.4f}          {frequencies_per_cm[state]:8.1f}            {wavelengths_nm[state]:5.1f}              {oscillator_strengths[state]:.6f}          {transition_dipoles[state]:10.7f}", calculation, 1, silent=silent)
 
     log(" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", calculation, 1, silent=silent)
 
@@ -590,7 +735,6 @@ def calculate_CIS_doubles_correction(excitation_energy, epsilons, root, ERI_SO_a
 def run_CIS(ERI_AO, n_occ, n_virt, n_SO, calculation, SCF_output, molecule, silent=False):
 
     """
-
     Begins a configuration interaction singles calculation.
 
     Args:   
@@ -635,13 +779,10 @@ def run_CIS(ERI_AO, n_occ, n_virt, n_SO, calculation, SCF_output, molecule, sile
 
     excitation_energies, weights = np.linalg.eigh(H_CIS)
 
-    percent_contributions = np.round(weights ** 2 * 100)
-
-    frequencies_per_cm = excitation_energies * constants.per_cm_in_hartree
-    wavelengths_nm = 1e7 / frequencies_per_cm
-    excitation_energies_eV = constants.eV_in_hartree * excitation_energies
+    excitation_energies, weights, percent_contributions, state_types = process_CIS_results(excitation_energies, weights)
 
     log("[Done]", calculation, 1, silent=silent)
+
 
     log("  Calculating transition dipoles...       ", calculation, 1, silent=silent, end=""); sys.stdout.flush()
 
@@ -650,9 +791,13 @@ def run_CIS(ERI_AO, n_occ, n_virt, n_SO, calculation, SCF_output, molecule, sile
 
     log("[Done]", calculation, 1, silent=silent)
 
-    log(f"  Constructing density matrix...          ", calculation, 1, silent=silent, end=""); sys.stdout.flush()
 
-    weights_of_interest = weights[:, root]
+    log(f"  Constructing density matrix...          ", calculation, 1, silent=silent, end=""); sys.stdout.flush()
+    
+    try:
+        weights_of_interest = weights[:, root]
+        
+    except: error("Specified root does not exist!")
 
     # Calculates weight matrix for state of interest
     b_ia = calculate_weights_matrix(weights_of_interest, excitations, n_occ, n_virt)
@@ -661,15 +806,25 @@ def run_CIS(ERI_AO, n_occ, n_virt, n_SO, calculation, SCF_output, molecule, sile
     log("[Done]", calculation, 1, silent=silent)
 
     log("\n  Printing excited state information...  ", calculation, 2, silent=silent)
+    log(f"  Contributions are printed if they are larger than {calculation.CIS_contribution_threshold:.1f} %.  ", calculation, 2, silent=silent)
 
     excitations_formatted = [(label_spin_orbital(i, calculation), label_spin_orbital(a, calculation)) for i, a in excitations]
 
-    print_excited_state_information(excitation_energies, SCF_output, percent_contributions, weights, excitations_formatted, calculation, silent=silent)
 
-    print_CIS_absorption_spectrum(molecule, excitation_energies_eV, calculation, frequencies_per_cm, wavelengths_nm, transition_dipoles, oscillator_strengths, silent=silent)
+    frequencies_per_cm = excitation_energies * constants.per_cm_in_hartree
+    wavelengths_nm = 1e7 / frequencies_per_cm
+    excitation_energies_eV = constants.eV_in_hartree * excitation_energies
+
+    print_excited_state_information(excitation_energies, SCF_output, percent_contributions, excitations_formatted, calculation, state_types, weights, silent=silent)
+
+    print_CIS_absorption_spectrum(molecule, excitation_energies_eV, calculation, frequencies_per_cm, wavelengths_nm, transition_dipoles, oscillator_strengths, state_types, silent=silent)
 
     # Energy of transition of state of interest
-    E_transition = excitation_energies[root]
+    try:
+
+        E_transition = excitation_energies[root]
+    
+    except: error("Specified root does not exist!")
 
     # Optionally applies doubles correction to transition energy for a specified state
     if "[D]" in calculation.method:
@@ -678,9 +833,7 @@ def run_CIS(ERI_AO, n_occ, n_virt, n_SO, calculation, SCF_output, molecule, sile
 
         E_transition += E_CIS_D
 
-
     E_CIS = SCF_output.energy + E_transition
-
 
     return E_CIS, E_transition, P_CIS, P_CIS_a, P_CIS_b
 

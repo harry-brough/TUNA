@@ -80,9 +80,11 @@ def rotate_molecular_orbitals(molecular_orbitals, n_occ, theta):
     rotation_matrix = np.eye(dimension)
 
     # Makes sure there is a HOMO and a LUMO to rotate, builds rotation matrix using sine and cosine of the requested angle, at the HOMO and LUMO indices
-    if dimension > 1:
-
+    try:
+        
         rotation_matrix[homo_index:lumo_index + 1, homo_index:lumo_index + 1] = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta),  np.cos(theta)]])
+    
+    except: error("Basis set too small to rotate initial guess orbitals! Use a larger basis or the NOROTATE keyword.")
 
     # Rotates molecular orbitals with this matrix
     rotated_molecular_orbitals = molecular_orbitals @ rotation_matrix
@@ -436,7 +438,7 @@ def calculate_energy(calculation, atoms, coordinates, P_guess=None, P_guess_alph
         log(" Beginning self-consistent field cycle...\n", calculation, 1, silent=silent)
 
         # Prints convergence criteria specified
-        log(f" Using \"{calculation.scf_conv["name"]}\" convergence criteria.", calculation, 1, silent=silent)
+        log(f" Using \"{calculation.scf_conv["name"]}\" SCF convergence criteria.", calculation, 1, silent=silent)
 
         # Prints the chosen SCF convergence acceleration options
         if calculation.DIIS and not calculation.damping: log(" Using DIIS for convergence acceleration.", calculation, 1, silent=silent)
@@ -455,6 +457,7 @@ def calculate_energy(calculation, atoms, coordinates, P_guess=None, P_guess_alph
         # Extracts useful quantities from SCF output object
         molecular_orbitals = SCF_output.molecular_orbitals
         molecular_orbitals_alpha = SCF_output.molecular_orbitals_alpha  
+
         molecular_orbitals_beta = SCF_output.molecular_orbitals_beta   
         epsilons = SCF_output.epsilons
         epsilons_alpha = SCF_output.epsilons_alpha
@@ -470,6 +473,7 @@ def calculate_energy(calculation, atoms, coordinates, P_guess=None, P_guess_alph
 
         # Packs dipole integrals into SCF output object
         SCF_output.D = D
+
 
         if reference == "UHF": 
             
@@ -493,11 +497,13 @@ def calculate_energy(calculation, atoms, coordinates, P_guess=None, P_guess_alph
     
     if method in ["CIS", "UCIS", "CIS[D]", "UCIS[D]"]:
 
-       log("\n\n Beginning excited state calculation...", calculation, 1, silent=silent)
+        log("\n\n Beginning excited state calculation...", calculation, 1, silent=silent)
 
-       E_CIS, E_transition, P_CIS, P_CIS_alpha, P_CIS_beta = ci.run_CIS(ERI_AO, n_occ, n_virt, n_SO, calculation, SCF_output, molecule, silent=silent)
+        if n_virt <= 0: error("Excited state calculation requested on system with no virtual orbitals!")
 
-       if calculation.additional_print: 
+        E_CIS, E_transition, P_CIS, P_CIS_alpha, P_CIS_beta = ci.run_CIS(ERI_AO, n_occ, n_virt, n_SO, calculation, SCF_output, molecule, silent=silent)
+
+        if calculation.additional_print: 
            
            # Optionally uses CIS density for dipole moment and population analysis
            postscf.post_SCF_output(molecule, calculation, epsilons, molecular_orbitals, P_CIS, S, molecule.AO_ranges, D, P_CIS_alpha, P_CIS_beta, epsilons_alpha, epsilons_beta, molecular_orbitals_alpha, molecular_orbitals_beta)
@@ -552,9 +558,21 @@ def calculate_energy(calculation, atoms, coordinates, P_guess=None, P_guess_alph
         log(" Dispersion-corrected final energy: " + f"{final_energy:.10f}", calculation, 1, silent=silent)
     
     # Calculates and plots electron density if this is requested
-    if calculation.dens_plot and not silent and len(atoms) > 1: 
-        
-        plot.construct_electron_density(P, 0.07, molecule, calculation)
+    if not silent and len(atoms) > 1:
+
+        if calculation.dens_plot:
+
+            plot.construct_electron_density(P, 0.07, molecule, calculation)
+
+        if calculation.spin_dens_plot:
+            
+            if n_alpha != n_beta:
+                
+                R = P_alpha - P_beta if n_alpha + n_beta != 1 else P
+
+                plot.construct_electron_density(R, 0.07, molecule, calculation)
+
+            else: error("Spin density plot requested on singlet molecule!")
 
     return SCF_output, molecule, final_energy, P
 

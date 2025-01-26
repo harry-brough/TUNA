@@ -1,5 +1,30 @@
 # Changelog
 
+## TUNA 0.6.1 — 26/01/2025
+
+### Added
+
+- Keyword for splotting the spin density, `SPINDENSPLOT`
+- Virial ratio  is calculated and printed, which indicates the proximity to an optimised geometry
+- Degenerate excited states are now grouped and averaged before printing
+- The singlet or triplet character of excited states is now printed for RHF references
+
+### Changed
+
+- The default SCF convergence criteria for CIS calculations is now `TIGHT`
+- Threshold for CIS contributions decreased from 5% to 1%
+- Removed printing weights for RHF references, as these are calculated in a spin-orbital basis
+
+### Fixed
+
+- Requested orbital rotation with a tiny basis no longer causes a crash
+- Electron affinity calculation was crashing when no virtual orbitals were present
+- Excited state calculations were crashing when no virtual orbitals were present
+- Spin density matrix for one-electron systems was calculated incorrectly
+- Error handling for non-existent root in CIS calculations
+
+<br>
+
 ## TUNA 0.6.0 — 11/01/2025
 
 ### Added
